@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SINGULARITY</title>
+<link rel="icon" href="data:,">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #888; }
+canvas { display: block; width: 100vw; height: 100vh; }
+
+#drop-zone {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; z-index: 100; background: rgba(0,0,0,0.95);
+  transition: opacity 0.5s;
+}
+#drop-zone.hidden { opacity: 0; pointer-events: none; }
+#drop-zone h1 { font-size: 3rem; letter-spacing: 0.5em; color: #fff; margin-bottom: 1rem; text-transform: uppercase; }
+#drop-zone p { color: #555; font-size: 0.9rem; margin-bottom: 2rem; }
+#drop-zone.dragover { background: rgba(20,10,5,0.95); }
+#drop-zone.dragover h1 { color: #f80; }
+#file-input { display: none; }
+#drop-zone label {
+  padding: 12px 32px; border: 1px solid #333; cursor: pointer; font-size: 0.85rem;
+  color: #666; transition: all 0.3s; letter-spacing: 0.2em;
+}
+#drop-zone label:hover { border-color: #f80; color: #f80; }
+
+#controls {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+  display: flex; align-items: center; padding: 0 16px; z-index: 50;
+  opacity: 0; transition: opacity 0.3s; gap: 12px;
+}
+#controls.visible { opacity: 1; }
+#controls:hover { background: rgba(0,0,0,0.8); }
+
+#play-btn {
+  background: none; border: 1px solid #444; color: #888; width: 32px; height: 32px;
+  cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  border-radius: 2px; transition: all 0.2s;
+}
+#play-btn:hover { border-color: #aaa; color: #fff; }
+
+#time-display { font-size: 0.7rem; color: #555; min-width: 90px; }
+
+#seek-bar {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: #222; outline: none; cursor: pointer; border-radius: 1px;
+}
+#seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px; background: #666;
+  border-radius: 50%; cursor: pointer;
+}
+#seek-bar:hover::-webkit-slider-thumb { background: #f80; }
+
+#fps { position: fixed; top: 8px; right: 12px; font-size: 0.65rem; color: #333; z-index: 50; }
+#fullscreen-btn {
+  position: fixed; top: 8px; right: 60px; background: none; border: 1px solid #222;
+  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
+}
+#fullscreen-btn:hover { border-color: #666; color: #888; }
+
+#debug-toggle {
+  position: fixed; top: 8px; right: 110px; background: none; border: 1px solid #222;
+  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
+}
+#debug-toggle:hover { border-color: #666; color: #888; }
+
+#debug-overlay {
+  position: fixed; top: 32px; right: 12px; width: 200px; background: rgba(0,0,0,0.8);
+  padding: 8px; z-index: 50; display: none; font-size: 0.55rem;
+}
+#debug-overlay.visible { display: block; }
+.debug-bar { display: flex; align-items: center; margin: 2px 0; }
+.debug-bar .label { width: 70px; color: #555; }
+.debug-bar .bar { flex: 1; height: 6px; background: #111; position: relative; }
+.debug-bar .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; transition: width 0.05s; }
+
+#error-msg {
+  position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,0,0,0.2); border: 1px solid #f00; color: #f88;
+  padding: 8px 16px; font-size: 0.75rem; z-index: 200; display: none;
+  max-width: 80vw; word-break: break-all;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="drop-zone">
+  <h1>Singularity</h1>
+  <p>Drop an audio file or click to load</p>
+  <label for="file-input">LOAD AUDIO</label>
+  <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus,audio/*">
+</div>
+
+<div id="controls">
+  <button id="play-btn">&#9654;</button>
+  <span id="time-display">0:00 / 0:00</span>
+  <input type="range" id="seek-bar" min="0" max="1000" value="0">
+</div>
+
+<span id="fps">0 FPS</span>
+<button id="fullscreen-btn">FULLSCREEN</button>
+<button id="debug-toggle">DEBUG</button>
+<div id="error-msg"></div>
+
+<div id="debug-overlay">
+  <div class="debug-bar"><span class="label">Bass</span><div class="bar"><div class="fill" id="db-bass" style="background:#f40"></div></div></div>
+  <div class="debug-bar"><span class="label">Mid</span><div class="bar"><div class="fill" id="db-mid" style="background:#fa0"></div></div></div>
+  <div class="debug-bar"><span class="label">High</span><div class="bar"><div class="fill" id="db-high" style="background:#0af"></div></div></div>
+  <div class="debug-bar"><span class="label">RMS</span><div class="bar"><div class="fill" id="db-rms" style="background:#fff"></div></div></div>
+  <div class="debug-bar"><span class="label">Centroid</span><div class="bar"><div class="fill" id="db-centroid" style="background:#a0f"></div></div></div>
+  <div class="debug-bar"><span class="label">Kick</span><div class="bar"><div class="fill" id="db-kick" style="background:#f00"></div></div></div>
+  <div class="debug-bar"><span class="label">Flux</span><div class="bar"><div class="fill" id="db-flux" style="background:#0ff"></div></div></div>
+  <div class="debug-bar"><span class="label">ZCR</span><div class="bar"><div class="fill" id="db-zcr" style="background:#8f0"></div></div></div>
+  <div class="debug-bar"><span class="label">Energy</span><div class="bar"><div class="fill" id="db-energy" style="background:#f80"></div></div></div>
+</div>
+
+<script>
+"use strict";
+
+// ============================================================
+// SINGULARITY — Audio-Reactive Black Hole Visualizer
+// Stateless GPU particle system (inspired by NOVA architecture)
+// ============================================================
+
+const COUNT = 30000;
+
+function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg; el.style.display = 'block';
+    console.error('[SINGULARITY]', msg);
+}
+
+// ============================================================
+// VERTEX SHADER — All physics here, stateless displacement
+// Particles have base positions in an accretion disk and are
+// displaced by audio forces each frame. No simulation state.
+// ============================================================
+
+const vertexShader = `#version 300 es
+precision highp float;
+
+layout(location = 0) in vec2 a_quad;
+layout(location = 1) in vec2 a_base;
+layout(location = 2) in vec2 a_dir;
+layout(location = 3) in float a_orbit;
+layout(location = 4) in float a_seed;
+layout(location = 5) in float a_band;
+layout(location = 6) in float a_size;    // per-particle size class (set at init)
+layout(location = 7) in float a_bright;  // per-particle brightness class
+
+uniform float u_bass, u_mid, u_high, u_rms, u_centroid, u_kick;
+uniform float u_flux, u_zcr, u_energy, u_time, u_aspect;
+uniform vec2 u_resolution;
+uniform vec4 u_bands03, u_bands47;
+uniform vec2 u_bands89;
+
+out vec4 v_color;
+out vec2 v_uv;
+out float v_coreSharp; // how sharp this star's core is
+
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+
+vec3 spectralColor(float c) {
+    vec3 warm   = vec3(1.0, 0.2, 0.03);
+    vec3 orange = vec3(1.0, 0.5, 0.08);
+    vec3 gold   = vec3(1.0, 0.8, 0.2);
+    vec3 cyan   = vec3(0.15, 0.7, 1.0);
+    vec3 blue   = vec3(0.25, 0.35, 1.0);
+    vec3 white  = vec3(0.9, 0.9, 1.0);
+    if (c < 0.2) return mix(warm, orange, c * 5.0);
+    if (c < 0.4) return mix(orange, gold, (c - 0.2) * 5.0);
+    if (c < 0.6) return mix(gold, cyan, (c - 0.4) * 5.0);
+    if (c < 0.8) return mix(cyan, blue, (c - 0.6) * 5.0);
+    return mix(blue, white, (c - 0.8) * 5.0);
+}
+
+vec3 bandColor(int b) {
+    if(b==0) return vec3(0.9, 0.1, 0.1);
+    if(b==1) return vec3(1.0, 0.35, 0.1);
+    if(b==2) return vec3(1.0, 0.6, 0.1);
+    if(b==3) return vec3(1.0, 0.85, 0.2);
+    if(b==4) return vec3(0.5, 0.9, 0.2);
+    if(b==5) return vec3(0.2, 0.85, 0.5);
+    if(b==6) return vec3(0.15, 0.65, 0.9);
+    if(b==7) return vec3(0.3, 0.45, 1.0);
+    if(b==8) return vec3(0.6, 0.3, 1.0);
+    return vec3(0.85, 0.7, 1.0);
+}
+
+float getBand(int b) {
+    if(b<4) { vec4 v=u_bands03; return b==0?v.x:b==1?v.y:b==2?v.z:v.w; }
+    if(b<8) { vec4 v=u_bands47; int i=b-4; return i==0?v.x:i==1?v.y:i==2?v.z:v.w; }
+    return b==8?u_bands89.x:u_bands89.y;
+}
+
+void main() {
+    float seed = a_seed;
+    float t = u_time;
+    int band = int(a_band);
+    float bVal = getBand(band);
+
+    // === Per-particle unique time signatures ===
+    // Each star has its OWN rhythm, phase, and speed
+    float h1 = hash(seed * 1.1), h2 = hash(seed * 2.2), h3 = hash(seed * 3.3);
+    float h4 = hash(seed * 4.4), h5 = hash(seed * 5.5), h6 = hash(seed * 6.6);
+    float h7 = hash(seed * 7.7);
+
+    // Each particle's time runs at a unique speed with unique phase
+    float myTime1 = t * (0.3 + h1 * 0.7) + seed * 50.0;
+    float myTime2 = t * (0.2 + h2 * 0.6) + seed * 37.0;
+    float myTime3 = t * (0.4 + h3 * 0.5) + seed * 63.0;
+
+    vec2 p = a_base;
+
+    // === BREATHING: Energy contraction ===
+    p *= 1.0 + (1.0 - u_energy) * 0.2;
+
+    // === BASS PUSH: Radial explosion + kick burst ===
+    // Each particle has its own sensitivity to bass (h4 controls reactivity)
+    float myBassReact = 0.3 + h4 * 0.8;
+    float bassPush = u_bass * 0.4 * myBassReact + u_kick * (0.6 + h4 * 1.0);
+    p += a_dir * bassPush;
+
+    // === MIDS: Per-particle unique orbital dance ===
+    // Not just sin/cos — each particle traces its own Lissajous figure
+    float mAmp = u_mid * 0.12 + 0.015;
+    float mRatioX = 1.0 + floor(h1 * 3.0);  // 1, 2, or 3
+    float mRatioY = 1.0 + floor(h2 * 3.0);
+    float mPhaseX = h3 * 6.2832;
+    float mPhaseY = h4 * 6.2832;
+    p.x += sin(myTime1 * mRatioX + mPhaseX) * mAmp * (0.5 + h5);
+    p.y += sin(myTime2 * mRatioY + mPhaseY) * mAmp * (0.5 + h6) * 0.8;
+
+    // === ROTATION: Differential (inner=fast, outer=slow) ===
+    float rotSpeed = 0.25 + u_bass * 0.6 + u_energy * 0.3;
+    float rotAngle = t * rotSpeed * (1.0 + (1.0 - a_orbit) * 2.5);
+    float cs = cos(rotAngle), sn = sin(rotAngle);
+    p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
+
+    // === HIGHS: Per-particle sparkle (unique freq and amp) ===
+    float myHighFreq = 5.0 + h1 * 10.0;  // each star jitters at its own frequency
+    float myHighAmp = u_high * 0.03 * (0.3 + h5 * 1.2);
+    p.x += sin(t * myHighFreq + seed * 100.0) * myHighAmp;
+    p.y += cos(t * (myHighFreq * 0.9) + seed * 80.0) * myHighAmp;
+
+    // === PER-BAND PUSH: Each star reacts to its frequency ===
+    p += a_dir * bVal * 0.18 * (0.5 + h6);
+
+    // === ZCR CHAOS: Some particles are "nervous", others "calm" ===
+    float myNervousness = h3 * h3; // squared = most particles calm, few are very nervous
+    float chaos = u_zcr * 0.04 * myNervousness;
+    p.x += sin(t * 13.0 + seed * 200.0) * chaos;
+    p.y += cos(t * 11.0 + seed * 180.0) * chaos;
+
+    // === FLUX WARP: Spacetime ripple, unique phase per particle ===
+    float warp = u_flux * 0.05 * (0.3 + h2);
+    float warpAngle = myTime1 * 0.4 + a_orbit * 4.0 + h7 * 6.28;
+    p += vec2(sin(warpAngle), cos(warpAngle * 1.3)) * warp;
+
+    float pDist = length(p);
+
+    // === PARTICLE SIZE: Wide variation, per-particle class ===
+    // a_size is set at init with power-law distribution (few big, many small)
+    // Each star's own "heartbeat" pulse tied to its band
+    float myPulseSpeed = 1.0 + h1 * 3.0;
+    float myPulsePhase = h2 * 6.28;
+    float pulse = 0.7 + 0.3 * sin(myTime1 * myPulseSpeed + myPulsePhase + bVal * 3.0);
+
+    // Band reactivity makes the star swell when its frequency hits
+    float bandSwell = bVal * bVal * 3.0; // squared = more dramatic response to peaks
+    float kickSwell = u_kick * 2.0 * h4;
+
+    // Accretion glow: stars near center are bigger and brighter
+    float nearCenter = smoothstep(0.3, 0.02, pDist);
+
+    float sz = a_size * pulse * (1.0 + bandSwell + kickSwell + u_rms * 0.8 + nearCenter * 2.5);
+    sz = max(sz, 0.5); // minimum visible
+    float szPx = sz / u_resolution.y;
+
+    // Position
+    vec2 screenPos = vec2(p.x / u_aspect, p.y);
+    gl_Position = vec4(screenPos + a_quad * szPx, 0.0, 1.0);
+    v_uv = a_quad;
+
+    // Core sharpness: bigger/brighter stars have sharper cores
+    v_coreSharp = 2.0 + a_bright * 4.0 + nearCenter * 3.0;
+
+    // === COLOR: Layered, per-particle unique tint ===
+    vec3 baseCol = spectralColor(u_centroid);
+    vec3 bC = bandColor(band);
+
+    // Each star has its own color personality
+    float colorMix = bVal * 0.6 * (0.5 + h7);
+    vec3 col = mix(baseCol, bC, colorMix);
+
+    // Accretion disk: hotter near center
+    col = mix(col, col * 2.5 + vec3(0.5, 0.25, 0.05), nearCenter * 0.7);
+
+    // Per-particle shimmer: some stars twinkle white on high frequencies
+    float shimmer = u_high * h7 * sin(myTime3 * 4.0) * 0.5;
+    col = mix(col, vec3(1.0), max(shimmer, 0.0));
+
+    // Brightness: a_bright gives each star its own luminosity class
+    float bright = a_bright * (1.0 + u_rms * 0.6);
+    col *= 0.8 + bright * 1.5;
+
+    // Alpha: each star has its own baseline visibility
+    float baseAlpha = 0.15 + a_bright * 0.5;
+    float alpha = baseAlpha + u_energy * 0.2 + bVal * bVal * 0.4 + nearCenter * 0.5;
+    alpha += u_kick * 0.25 * h4;
+    alpha *= pulse;
+
+    v_color = vec4(col, min(alpha, 1.0));
+}
+`;
+
+const fragmentShader = `#version 300 es
+precision mediump float;
+in vec4 v_color;
+in vec2 v_uv;
+in float v_coreSharp;
+out vec4 fragColor;
+
+void main() {
+    float d = length(v_uv);
+
+    // Sharp bright core + soft halo = star-like, not blob-like
+    float core = exp(-d * d * v_coreSharp * 8.0);  // tight bright center
+    float halo = exp(-d * d * 1.5) * 0.25;         // soft diffuse glow
+    float shape = core + halo;
+
+    // 4-point diffraction spikes (subtle, star-like)
+    float angle = atan(v_uv.y, v_uv.x);
+    float spike = pow(abs(cos(angle * 2.0)), 32.0) * exp(-d * 3.0) * 0.15;
+
+    vec3 col = v_color.rgb * (shape + spike);
+    // Core is slightly whiter/hotter than edges
+    col += vec3(0.15, 0.1, 0.08) * core * core * v_color.a;
+
+    float alpha = v_color.a * (shape + spike * 0.5);
+    fragColor = vec4(col, alpha);
+}
+`;
+
+const postVS = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main() {
+    v_uv = a_pos * 0.5 + 0.5;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+`;
+
+const postFS = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_scene;
+uniform float u_rms;
+uniform float u_flux;
+uniform float u_centroid;
+uniform float u_kick;
+uniform float u_bass;
+uniform float u_high;
+uniform float u_energy;
+uniform float u_time;
+uniform vec2 u_resolution;
+
+vec3 spectralColor(float c) {
+    vec3 warm  = vec3(1.0, 0.25, 0.05);
+    vec3 orange = vec3(1.0, 0.55, 0.1);
+    vec3 gold  = vec3(1.0, 0.8, 0.2);
+    vec3 cyan  = vec3(0.2, 0.7, 1.0);
+    vec3 blue  = vec3(0.3, 0.4, 1.0);
+    vec3 white = vec3(0.85, 0.85, 1.0);
+    if (c < 0.2) return mix(warm, orange, c * 5.0);
+    if (c < 0.4) return mix(orange, gold, (c - 0.2) * 5.0);
+    if (c < 0.6) return mix(gold, cyan, (c - 0.4) * 5.0);
+    if (c < 0.8) return mix(cyan, blue, (c - 0.6) * 5.0);
+    return mix(blue, white, (c - 0.8) * 5.0);
+}
+
+void main() {
+    vec2 uv = v_uv;
+    vec2 center = vec2(0.5);
+    vec2 toCenter = center - uv;
+    float dist = length(toCenter);
+    vec2 dir = dist > 0.0 ? toCenter / dist : vec2(0.0);
+
+    // Gravitational lensing — stronger on drops
+    float lensRadius = 0.12 + u_flux * 0.08 + u_kick * 0.06;
+    float lensStrength = 0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03;
+    float lensFactor = smoothstep(lensRadius, 0.0, dist);
+    vec2 lensedUV = clamp(uv + dir * lensFactor * lensStrength, 0.0, 1.0);
+
+    vec3 col = texture(u_scene, lensedUV).rgb;
+
+    // Bloom: subtle, preserves star clarity
+    float bloomStr = 0.15 + u_rms * 0.25 + u_high * 0.1;
+    vec3 bloom = vec3(0.0);
+    float bSize = (2.0 + u_rms * 2.5) / u_resolution.x;
+    for (int i = 0; i < 8; i++) {
+        float a = float(i) * 0.7854;
+        for (int j = 1; j <= 2; j++) {
+            float r = float(j) * bSize;
+            bloom += texture(u_scene, clamp(lensedUV + vec2(cos(a), sin(a)) * r, 0.0, 1.0)).rgb;
+        }
+    }
+    bloom /= 16.0;
+    bloom *= mix(vec3(1.0), spectralColor(u_centroid), 0.6);
+    col += bloom * bloomStr;
+
+    // Drop intensity: kicks + bass + energy combined
+    float dropHeat = u_kick * 0.6 + u_bass * 0.3 + u_energy * 0.1;
+    dropHeat = min(dropHeat, 1.0);
+
+    // Black hole color: shifts warm (red/orange) on drops, cool (centroid) at rest
+    vec3 coolCol = spectralColor(u_centroid);
+    vec3 hotCol = vec3(1.0, 0.35, 0.05); // fiery orange-red
+    vec3 holeColor = mix(coolCol, hotCol, dropHeat);
+
+    // Event horizon glow ring — swells on drops
+    float ringR = 0.035 + u_rms * 0.015 + u_bass * 0.02 + u_kick * 0.03;
+    float ringDist = abs(dist - ringR);
+    float ringTight = 12000.0 - dropHeat * 6000.0; // ring gets wider/softer on hits
+    float ring = exp(-ringDist * ringDist * ringTight) * (0.6 + u_rms * 2.0 + u_kick * 2.5);
+    col += holeColor * 2.0 * ring;
+
+    // Outer accretion ring — expands with energy
+    float outerR = ringR + 0.02 + u_energy * 0.02 + u_kick * 0.02;
+    float outerDist = abs(dist - outerR);
+    float outerRing = exp(-outerDist * outerDist * 2500.0) * (0.2 + u_energy * 0.5 + u_kick * 0.4);
+    col += holeColor * 0.7 * outerRing;
+
+    // Inner heat glow — diffuse warm light flooding out from center on drops
+    float heatGlow = smoothstep(0.15 + u_kick * 0.06, 0.0, dist) * dropHeat * 1.2;
+    col += hotCol * heatGlow;
+
+    // Black hole void — grows bigger on drops
+    float voidR = 0.02 + u_rms * 0.008 + u_kick * 0.015 + u_bass * 0.008;
+    col *= smoothstep(voidR, voidR + 0.012 + dropHeat * 0.005, dist);
+
+    // Kick flash
+    col += vec3(u_kick * 0.12);
+
+    // Vignette
+    col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
+
+    // Tone map + gamma
+    col = col / (col + 1.0);
+    col = pow(col, vec3(0.93));
+
+    fragColor = vec4(col, 1.0);
+}
+`;
+
+// ============================================================
+// AUDIO ENGINE (NOVA-style asymmetric smoothing)
+// ============================================================
+
+class AudioEngine {
+    constructor() {
+        this.ctx = null;
+        this.analyser = null;
+        this.source = null;
+        this.audio = null;
+        this.freqData = null;
+        this.timeData = null;
+        this.prevFreqData = null;
+
+        // 10 frequency bands
+        this.BAND_EDGES = [0, 0.02, 0.04, 0.08, 0.14, 0.22, 0.34, 0.5, 0.7, 0.88, 1.0];
+        this.bandRng = [];
+        for (let i = 0; i < 10; i++) this.bandRng.push({ min: 0.5, max: 0.5 });
+        this.frameCount = 0;
+
+        // Smoothed values (NOVA-style asymmetric: fast rise, slow fall)
+        this.s = {
+            bass: 0, mid: 0, high: 0, rms: 0,
+            centroid: 0, kick: 0, flux: 0, zcr: 0, energy: 0
+        };
+        this.sBands = new Float32Array(10);
+        this.prevRawBass = 0;
+
+        // Exposed features
+        this.features = { ...this.s };
+        this.bands = new Float32Array(10);
+    }
+
+    async loadFile(file) {
+        if (this.source) { try { this.source.disconnect(); } catch(e) {} }
+        if (this.audio) { this.audio.pause(); }
+
+        this.audio = new Audio();
+        this.audio.preload = 'auto';
+        this.audio.src = URL.createObjectURL(file);
+
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') await this.ctx.resume();
+
+        await new Promise((resolve, reject) => {
+            if (this.audio.readyState >= 2) { resolve(); return; }
+            this.audio.addEventListener('canplay', resolve, { once: true });
+            this.audio.addEventListener('error', () => reject(new Error('Audio load failed')), { once: true });
+        });
+
+        this.source = this.ctx.createMediaElementSource(this.audio);
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.analyser.smoothingTimeConstant = 0.35;
+
+        this.source.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+
+        const n = this.analyser.frequencyBinCount;
+        this.freqData = new Uint8Array(n);
+        this.timeData = new Uint8Array(this.analyser.fftSize);
+        this.prevFreqData = new Uint8Array(n);
+
+        return this.audio;
+    }
+
+    adaptBand(i, v) {
+        const r = this.bandRng[i];
+        if (v < r.min) r.min = v; else r.min += (v - r.min) * 0.002;
+        if (v > r.max) r.max = v; else r.max += (v - r.max) * 0.002;
+        const s = r.max - r.min;
+        return s < 0.001 ? 0 : Math.max(0, Math.min(1, (v - r.min) / s));
+    }
+
+    update(dt) {
+        if (!this.analyser || !this.freqData) return;
+
+        this.analyser.getByteFrequencyData(this.freqData);
+        this.analyser.getByteTimeDomainData(this.timeData);
+        this.frameCount++;
+
+        const freq = this.freqData;
+        const time = this.timeData;
+        const N = freq.length;
+
+        // --- 10-band frequency analysis with adaptive normalization ---
+        const rawBands = new Float32Array(10);
+        for (let b = 0; b < 10; b++) {
+            const lo = Math.floor(this.BAND_EDGES[b] * N);
+            const hi = Math.floor(this.BAND_EDGES[b + 1] * N);
+            let sum = 0, count = 0;
+            for (let i = lo; i < hi; i++) { sum += freq[i] / 255; count++; }
+            const raw = count > 0 ? sum / count : 0;
+            rawBands[b] = this.frameCount > 30 ? this.adaptBand(b, raw) : raw;
+        }
+
+        // Aggregate: bass = bands 0-2, mid = 3-6, high = 7-9
+        const rawBass = (rawBands[0] + rawBands[1] + rawBands[2]) / 3;
+        const rawMid = (rawBands[3] + rawBands[4] + rawBands[5] + rawBands[6]) / 4;
+        const rawHigh = (rawBands[7] + rawBands[8] + rawBands[9]) / 3;
+
+        // RMS
+        let rmsSum = 0;
+        for (let i = 0; i < time.length; i++) {
+            const v = (time[i] - 128) / 128;
+            rmsSum += v * v;
+        }
+        const rawRMS = Math.sqrt(rmsSum / time.length);
+
+        // Spectral centroid
+        let wSum = 0, eSum = 0;
+        for (let i = 0; i < N; i++) { wSum += i * freq[i]; eSum += freq[i]; }
+        const rawCentroid = eSum > 0 ? (wSum / eSum) / N : 0;
+
+        // Spectral flux
+        let fluxSum = 0;
+        for (let i = 0; i < N; i++) {
+            const d = freq[i] - this.prevFreqData[i];
+            if (d > 0) fluxSum += d;
+        }
+        const rawFlux = Math.min(fluxSum / (N * 50), 1.0);
+        this.prevFreqData.set(freq);
+
+        // ZCR
+        let zcCount = 0;
+        for (let i = 1; i < time.length; i++) {
+            if ((time[i] >= 128) !== (time[i - 1] >= 128)) zcCount++;
+        }
+        const rawZCR = zcCount / time.length;
+
+        // === NOVA-style asymmetric smoothing: fast rise (0.45), slow fall (0.07) ===
+        const RR = 0.45, FF = 0.07;
+
+        function smooth(current, target) {
+            return current + (target - current) * (target > current ? RR : FF);
+        }
+
+        this.s.bass = smooth(this.s.bass, rawBass);
+        this.s.mid = smooth(this.s.mid, rawMid);
+        this.s.high = smooth(this.s.high, rawHigh);
+        this.s.rms = smooth(this.s.rms, rawRMS);
+        this.s.centroid = smooth(this.s.centroid, rawCentroid);
+        this.s.flux = smooth(this.s.flux, rawFlux);
+        this.s.zcr = smooth(this.s.zcr, rawZCR);
+
+        // Per-band smoothing
+        for (let i = 0; i < 10; i++) {
+            this.sBands[i] = smooth(this.sBands[i], rawBands[i]);
+        }
+
+        // --- Kick detection (NOVA-style) ---
+        const bassJump = Math.max(0, rawBass - this.prevRawBass);
+        if (bassJump > 0.15) this.s.kick = Math.max(this.s.kick, bassJump * 3.0);
+        this.s.kick *= 0.85; // 15% decay per frame
+        this.prevRawBass = rawBass;
+
+        // --- Energy (weighted aggregate, slow fall) ---
+        const rawEnergy = this.s.bass * 0.4 + this.s.mid * 0.35 + this.s.high * 0.25;
+        this.s.energy += (rawEnergy - this.s.energy) * (rawEnergy > this.s.energy ? 0.3 : 0.04);
+
+        // Copy to features
+        for (const k in this.s) this.features[k] = this.s[k];
+        this.bands.set(this.sBands);
+    }
+}
+
+// ============================================================
+// WEBGL HELPERS
+// ============================================================
+
+function compileShader(gl, type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(s);
+        gl.deleteShader(s);
+        throw new Error('Shader: ' + log);
+    }
+    return s;
+}
+
+function createProgram(gl, vsSrc, fsSrc) {
+    const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
+    const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+    const p = gl.createProgram();
+    gl.attachShader(p, vs);
+    gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('Link: ' + gl.getProgramInfoLog(p));
+    return p;
+}
+
+function getU(gl, prog, names) {
+    const u = {};
+    for (const n of names) u[n] = gl.getUniformLocation(prog, n);
+    return u;
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+
+(function main() {
+    const canvas = document.getElementById('c');
+    const gl = canvas.getContext('webgl2', {
+        antialias: false, alpha: false, depth: false, stencil: false,
+        powerPreference: 'high-performance'
+    });
+    if (!gl) { showError('WebGL2 not supported'); return; }
+
+    const hasFloat = gl.getExtension('EXT_color_buffer_float');
+    console.log('[SINGULARITY] WebGL2 OK, float FBO:', !!hasFloat);
+
+    // --- Resize ---
+    let aspect = 1, W = 1, H = 1;
+    let sceneFBO = null, sceneTex = null;
+
+    function createFBO() {
+        if (sceneFBO) { gl.deleteFramebuffer(sceneFBO); gl.deleteTexture(sceneTex); }
+        sceneTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+        if (hasFloat) {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, W, H, 0, gl.RGBA, gl.FLOAT, null);
+        } else {
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        }
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        sceneFBO = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+            console.warn('[SINGULARITY] Float FBO failed, using RGBA8');
+            gl.deleteTexture(sceneTex);
+            sceneTex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    function resize() {
+        const dpr = Math.min(window.devicePixelRatio, 2);
+        W = canvas.width = window.innerWidth * dpr;
+        H = canvas.height = window.innerHeight * dpr;
+        aspect = W / H;
+        gl.viewport(0, 0, W, H);
+        createFBO();
+    }
+
+    // --- Compile shaders ---
+    let renderProg, postProg;
+    try {
+        renderProg = createProgram(gl, vertexShader, fragmentShader);
+        postProg = createProgram(gl, postVS, postFS);
+    } catch (e) { showError(e.message); return; }
+    console.log('[SINGULARITY] Shaders compiled');
+
+    const uNames = ['u_bass','u_mid','u_high','u_rms','u_centroid','u_kick',
+        'u_flux','u_zcr','u_energy','u_time','u_aspect','u_resolution',
+        'u_bands03','u_bands47','u_bands89','u_scene'];
+    const uR = getU(gl, renderProg, uNames);
+    const uP = getU(gl, postProg, uNames);
+
+    // --- Generate particle data (accretion disk layout) ---
+    const baseData = new Float32Array(COUNT * 2);
+    const dirData = new Float32Array(COUNT * 2);
+    const orbitData = new Float32Array(COUNT);
+    const seedData = new Float32Array(COUNT);
+    const bandData = new Float32Array(COUNT);
+    const sizeData = new Float32Array(COUNT);
+    const brightData = new Float32Array(COUNT);
+
+    for (let i = 0; i < COUNT; i++) {
+        // Accretion disk with spiral arms
+        const t = Math.sqrt(Math.random());
+        const r = 0.03 + t * 0.85;
+        const arms = 3;
+        const arm = Math.floor(Math.random() * arms);
+        const turns = 2.0;
+        const jitter = (Math.random() - 0.5) * 0.35 * (1.0 - t * 0.4);
+        const angle = (arm / arms) * Math.PI * 2 + t * turns * Math.PI * 2 + jitter;
+
+        const scatter = (1.0 - t) * 0.06 + 0.008;
+        const x = Math.cos(angle) * r + (Math.random() - 0.5) * scatter;
+        const y = Math.sin(angle) * r + (Math.random() - 0.5) * scatter;
+
+        baseData[i * 2] = x;
+        baseData[i * 2 + 1] = y;
+
+        const len = Math.sqrt(x * x + y * y) || 0.001;
+        dirData[i * 2] = x / len + (Math.random() - 0.5) * 0.12;
+        dirData[i * 2 + 1] = y / len + (Math.random() - 0.5) * 0.12;
+
+        orbitData[i] = t;
+        seedData[i] = Math.random() * 6.2832;
+        bandData[i] = Math.floor(Math.random() * 10);
+
+        // Size: power-law distribution — few bright giants, many small stars
+        // ~5% are large (4-8px), ~15% medium (2.5-4px), ~80% small (1-2.5px)
+        const sizeRoll = Math.random();
+        if (sizeRoll < 0.03) {
+            sizeData[i] = 5.0 + Math.random() * 4.0;  // rare giants
+        } else if (sizeRoll < 0.08) {
+            sizeData[i] = 3.5 + Math.random() * 2.0;   // large stars
+        } else if (sizeRoll < 0.25) {
+            sizeData[i] = 2.0 + Math.random() * 1.5;   // medium
+        } else {
+            sizeData[i] = 0.8 + Math.random() * 1.2;   // small background stars
+        }
+
+        // Brightness: correlated with size but not 1:1
+        // Big stars are bright, small stars vary widely
+        const baseBright = sizeData[i] / 9.0; // 0.1 to 1.0
+        brightData[i] = Math.min(1.0, baseBright + Math.random() * 0.4);
+    }
+
+    // --- Create buffers ---
+    function createBuffer(data) {
+        const b = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, b);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+        return b;
+    }
+
+    const quadBuf = createBuffer(new Float32Array([-1,-1, 1,-1, -1,1, 1,1]));
+    const baseBuf = createBuffer(baseData);
+    const dirBuf = createBuffer(dirData);
+    const orbitBuf = createBuffer(orbitData);
+    const seedBuf = createBuffer(seedData);
+    const bandBuf = createBuffer(bandData);
+    const sizeBuf = createBuffer(sizeData);
+    const brightBuf = createBuffer(brightData);
+
+    // --- VAO ---
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+
+    // location 0: quad (per-vertex)
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+    // location 1: base pos (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, baseBuf);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(1, 1);
+
+    // location 2: dir (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, dirBuf);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(2, 1);
+
+    // location 3: orbit (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, orbitBuf);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(3, 1);
+
+    // location 4: seed (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, seedBuf);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(4, 1);
+
+    // location 5: band (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, bandBuf);
+    gl.enableVertexAttribArray(5);
+    gl.vertexAttribPointer(5, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(5, 1);
+
+    // location 6: size class (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuf);
+    gl.enableVertexAttribArray(6);
+    gl.vertexAttribPointer(6, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(6, 1);
+
+    // location 7: brightness class (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, brightBuf);
+    gl.enableVertexAttribArray(7);
+    gl.vertexAttribPointer(7, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(7, 1);
+
+    gl.bindVertexArray(null);
+
+    // Post-processing fullscreen quad VAO
+    const postVAO = gl.createVertexArray();
+    gl.bindVertexArray(postVAO);
+    const fsBuf = createBuffer(new Float32Array([-1,-1, 1,-1, -1,1, 1,1]));
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+
+    resize();
+    window.addEventListener('resize', resize);
+    console.log('[SINGULARITY] Initialized', COUNT, 'particles');
+
+    // --- Audio ---
+    const audio = new AudioEngine();
+
+    // --- UI ---
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const controls = document.getElementById('controls');
+    const playBtn = document.getElementById('play-btn');
+    const seekBar = document.getElementById('seek-bar');
+    const timeDisplay = document.getElementById('time-display');
+    const fpsEl = document.getElementById('fps');
+    const debugOverlay = document.getElementById('debug-overlay');
+    const db = {
+        bass: document.getElementById('db-bass'),
+        mid: document.getElementById('db-mid'),
+        high: document.getElementById('db-high'),
+        rms: document.getElementById('db-rms'),
+        centroid: document.getElementById('db-centroid'),
+        kick: document.getElementById('db-kick'),
+        flux: document.getElementById('db-flux'),
+        zcr: document.getElementById('db-zcr'),
+        energy: document.getElementById('db-energy'),
+    };
+
+    let audioEl = null, isPlaying = false;
+
+    async function loadAudioFile(file) {
+        if (!file) return;
+        console.log('[SINGULARITY] Loading:', file.name, file.type, file.size);
+        try { audioEl = await audio.loadFile(file); }
+        catch (e) { showError('Audio: ' + e.message); return; }
+
+        dropZone.classList.add('hidden');
+        controls.classList.add('visible');
+        audioEl.addEventListener('ended', () => { isPlaying = false; playBtn.innerHTML = '&#9654;'; });
+
+        try { await audioEl.play(); isPlaying = true; playBtn.innerHTML = '&#9646;&#9646;'; }
+        catch (e) { console.log('[SINGULARITY] Autoplay blocked'); }
+    }
+
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
+
+    playBtn.addEventListener('click', () => {
+        if (!audioEl) return;
+        if (isPlaying) { audioEl.pause(); isPlaying = false; playBtn.innerHTML = '&#9654;'; }
+        else { audioEl.play(); isPlaying = true; playBtn.innerHTML = '&#9646;&#9646;'; }
+    });
+    seekBar.addEventListener('input', () => { if (audioEl?.duration) audioEl.currentTime = (seekBar.value / 1000) * audioEl.duration; });
+    document.getElementById('fullscreen-btn').addEventListener('click', () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    });
+    document.getElementById('debug-toggle').addEventListener('click', () => debugOverlay.classList.toggle('visible'));
+
+    function fmt(s) { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60), sc = Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
+
+    // --- Set audio uniforms ---
+    function setU(u, f, bands, t) {
+        gl.uniform1f(u.u_bass, f.bass);
+        gl.uniform1f(u.u_mid, f.mid);
+        gl.uniform1f(u.u_high, f.high);
+        gl.uniform1f(u.u_rms, f.rms);
+        gl.uniform1f(u.u_centroid, f.centroid);
+        gl.uniform1f(u.u_kick, f.kick);
+        gl.uniform1f(u.u_flux, f.flux);
+        gl.uniform1f(u.u_zcr, f.zcr);
+        gl.uniform1f(u.u_energy, f.energy);
+        gl.uniform1f(u.u_time, t);
+        gl.uniform1f(u.u_aspect, aspect);
+        gl.uniform2f(u.u_resolution, W, H);
+        if (u.u_bands03 !== null) gl.uniform4f(u.u_bands03, bands[0], bands[1], bands[2], bands[3]);
+        if (u.u_bands47 !== null) gl.uniform4f(u.u_bands47, bands[4], bands[5], bands[6], bands[7]);
+        if (u.u_bands89 !== null) gl.uniform2f(u.u_bands89, bands[8], bands[9]);
+    }
+
+    // --- Render loop ---
+    let time = 0, lastTime = performance.now() / 1000;
+    let frameCount = 0, fpsTime = 0;
+
+    function frame(nowMs) {
+        requestAnimationFrame(frame);
+        const now = nowMs / 1000;
+        const dt = Math.min(now - lastTime, 0.1);
+        lastTime = now;
+        time += dt;
+
+        frameCount++; fpsTime += dt;
+        if (fpsTime >= 1) { fpsEl.textContent = Math.round(frameCount/fpsTime)+' FPS'; frameCount = 0; fpsTime = 0; }
+
+        audio.update(dt);
+
+        if (audioEl?.duration) {
+            seekBar.value = (audioEl.currentTime / audioEl.duration) * 1000;
+            timeDisplay.textContent = fmt(audioEl.currentTime) + ' / ' + fmt(audioEl.duration);
+        }
+
+        if (debugOverlay.classList.contains('visible')) {
+            const f = audio.features;
+            db.bass.style.width = (f.bass*100)+'%';
+            db.mid.style.width = (f.mid*100)+'%';
+            db.high.style.width = (f.high*100)+'%';
+            db.rms.style.width = (f.rms*100)+'%';
+            db.centroid.style.width = (f.centroid*100)+'%';
+            db.kick.style.width = (Math.min(f.kick,1)*100)+'%';
+            db.flux.style.width = (f.flux*100)+'%';
+            db.zcr.style.width = (f.zcr*100)+'%';
+            db.energy.style.width = (f.energy*100)+'%';
+        }
+
+        // --- Render particles to FBO ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
+        gl.viewport(0, 0, W, H);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE); // Additive
+
+        gl.useProgram(renderProg);
+        setU(uR, audio.features, audio.bands, time);
+
+        gl.bindVertexArray(vao);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, COUNT);
+        gl.bindVertexArray(null);
+        gl.disable(gl.BLEND);
+
+        // --- Post-processing to screen ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, W, H);
+
+        gl.useProgram(postProg);
+        setU(uP, audio.features, audio.bands, time);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+        gl.uniform1i(uP.u_scene, 0);
+
+        gl.bindVertexArray(postVAO);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindVertexArray(null);
+    }
+
+    requestAnimationFrame(frame);
+    console.log('[SINGULARITY] Running');
+})();
+</script>
+</body>
+</html>
