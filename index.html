@@ -1290,6 +1290,13 @@ function getU(gl, prog, names) {
         return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/.test(url);
     }
 
+    // List of cobalt API instances to try (main + community mirrors)
+    const COBALT_INSTANCES = [
+        'https://api.cobalt.tools',
+        'https://cobalt-api.ayo.tf',
+        'https://cobalt.api.timelessnesses.me'
+    ];
+
     async function loadFromYouTube(url) {
         if (!isYouTubeUrl(url)) {
             ytStatus.textContent = 'Not a valid YouTube link';
@@ -1299,38 +1306,54 @@ function getU(gl, prog, names) {
         ytStatus.textContent = 'Extracting audio...';
         ytStatus.className = 'loading';
 
-        try {
-            const resp = await fetch('https://api.cobalt.tools/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    url: url,
-                    audioFormat: 'mp3',
-                    isAudioOnly: true,
-                    filenameStyle: 'basic'
-                })
-            });
+        const body = JSON.stringify({
+            url: url,
+            downloadMode: 'audio',
+            audioFormat: 'mp3'
+        });
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
 
-            if (!resp.ok) throw new Error('Service returned ' + resp.status);
-            const data = await resp.json();
+        let lastError = '';
+        for (const instance of COBALT_INSTANCES) {
+            try {
+                const resp = await fetch(instance, {
+                    method: 'POST', headers, body
+                });
 
-            if (data.status === 'error') throw new Error(data.text || 'Extraction failed');
+                const data = await resp.json().catch(() => null);
+                if (!data) { lastError = 'Invalid response'; continue; }
+                if (data.status === 'error') { lastError = data.error?.code || data.text || 'Extraction failed'; continue; }
 
-            const audioUrl = data.url;
-            if (!audioUrl) throw new Error('No audio URL returned');
+                // Extract audio URL from response (format varies by status)
+                let audioUrl = null;
+                if (data.status === 'tunnel' || data.status === 'redirect') {
+                    audioUrl = data.url;
+                } else if (data.status === 'local-processing') {
+                    audioUrl = data.url || (data.tunnel && data.tunnel[0]);
+                } else if (data.url) {
+                    audioUrl = data.url;
+                }
 
-            ytStatus.textContent = 'Loading audio...';
-            await loadAudioFile(audioUrl);
-            ytStatus.textContent = '';
-            ytStatus.className = '';
-        } catch (e) {
-            console.error('[SINGULARITY] YouTube extract error:', e);
-            ytStatus.textContent = 'Failed: ' + e.message;
-            ytStatus.className = 'error';
+                if (!audioUrl) { lastError = 'No audio URL in response'; continue; }
+
+                ytStatus.textContent = 'Loading audio...';
+                await loadAudioFile(audioUrl);
+                ytStatus.textContent = '';
+                ytStatus.className = '';
+                return; // success
+            } catch (e) {
+                lastError = e.message;
+                continue; // try next instance
+            }
         }
+
+        // All instances failed
+        console.error('[SINGULARITY] YouTube extract failed:', lastError);
+        ytStatus.textContent = 'Failed: ' + lastError;
+        ytStatus.className = 'error';
     }
 
     document.getElementById('yt-go').addEventListener('click', () => loadFromYouTube(ytUrl.value.trim()));
