@@ -165,6 +165,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 </div>
 
 <span id="fps">0 FPS</span>
+<button class="top-btn" id="tweak-toggle" style="right:205px">Tweak</button>
 <button class="top-btn" id="settings-toggle" style="right:155px">Colors</button>
 <button class="top-btn" id="debug-toggle" style="right:105px">Debug</button>
 <button class="top-btn" id="fullscreen-btn" style="right:50px">Fullscreen</button>
@@ -176,6 +177,31 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
   <div class="setting-row"><label>Hole</label><input type="checkbox" class="auto-cb" id="auto-hue-hole" title="Auto"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
   <div class="setting-row"><label>Saturate</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
+</div>
+
+<div class="panel" id="tweak-panel" style="left:12px;top:36px;max-height:calc(100vh - 100px);overflow-y:auto">
+  <h3>Physics</h3>
+  <div class="setting-row"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span></div>
+  <div class="setting-row"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span></div>
+  <div class="setting-row"><label>Bass Push</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span></div>
+  <div class="setting-row"><label>Kick Burst</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span></div>
+  <h3 style="margin-top:8px">Stars</h3>
+  <div class="setting-row"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span></div>
+  <div class="setting-row"><label>Reactivity</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span></div>
+  <div class="setting-row"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span></div>
+  <div class="setting-row"><label>Brightness</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span></div>
+  <h3 style="margin-top:8px">Spacetime</h3>
+  <div class="setting-row"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span></div>
+  <div class="setting-row"><label>Chromatic</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span></div>
+  <div class="setting-row"><label>Lensing</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span></div>
+  <div class="setting-row"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span></div>
+  <h3 style="margin-top:8px">Black Hole</h3>
+  <div class="setting-row"><label>Void Size</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
+  <div class="setting-row"><label>Ring Glow</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
+  <div class="setting-row"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
+  <div class="setting-row" style="margin-top:8px;border:none;justify-content:center">
+    <button id="tw-reset" style="background:none;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.3);cursor:pointer;padding:4px 16px;font-family:inherit;font-size:0.55rem;border-radius:3px;letter-spacing:0.1em">RESET ALL</button>
+  </div>
 </div>
 
 <div class="panel" id="debug-overlay" style="right:12px">
@@ -234,8 +260,11 @@ uniform vec2 u_bands89;
 uniform mat4 u_viewProj;   // combined view * projection matrix
 uniform vec3 u_camRight;
 uniform vec3 u_camUp;
-uniform float u_hueStars;  // star hue shift in radians
-uniform float u_satMul;    // saturation multiplier
+uniform float u_hueStars;
+uniform float u_satMul;
+// Tweak multipliers (1.0 = default)
+uniform float u_twGravity, u_twOrbit, u_twBassPush, u_twKick;
+uniform float u_twSize, u_twReact, u_twBright;
 
 out vec4 v_color;
 out vec2 v_uv;
@@ -319,7 +348,7 @@ void main() {
     // --- GRAVITY: Black hole pulls everything inward ---
     // Pull strength driven by energy: more energy = stronger gravity
     // This is the core physics interaction
-    float gravityStrength = 0.02 + u_energy * 0.06 + u_bass * 0.03;
+    float gravityStrength = (0.02 + u_energy * 0.06 + u_bass * 0.03) * u_twGravity;
     // Inverse-distance pull (softened) — closer stars feel it more
     float dist0 = length(p);
     float pull = gravityStrength / (dist0 + 0.15);
@@ -329,12 +358,12 @@ void main() {
 
     // --- REPULSION: Kicks and bass peaks push outward ---
     // When the beat hits, gravity reverses momentarily
-    float repulse = u_kick * 0.15 * (0.3 + h4 * 0.7);
-    repulse += u_bass * 0.04 * h5; // bass gives gentle outward pressure
+    float repulse = u_kick * 0.15 * (0.3 + h4 * 0.7) * u_twKick;
+    repulse += u_bass * 0.04 * h5 * u_twBassPush;
     p += a_dir * repulse;
 
     // --- ORBIT: Slow differential rotation ---
-    float flowSpeed = 0.03 + u_energy * 0.03;
+    float flowSpeed = (0.03 + u_energy * 0.03) * u_twOrbit;
     float keplerFactor = 1.0 + (1.0 - a_orbit) * 1.2;
     float flowAngle = t * flowSpeed * keplerFactor + seed * 6.28;
     float cs = cos(flowAngle), sn = sin(flowAngle);
@@ -377,18 +406,18 @@ void main() {
     float pulse = 1.0 - pulseDepth + pulseDepth * (0.5 + 0.5 * sin(myTime1 * myPulseSpeed + myPulsePhase));
 
     // Band reactivity: star SWELLS when its frequency hits hard
-    float bandSwell = 1.0 + bVal * bVal * 4.0;
+    float bandSwell = 1.0 + bVal * bVal * 4.0 * u_twReact;
 
     // Kick: sudden size burst, per-particle reactivity
-    float kickBurst = 1.0 + u_kick * 3.0 * (0.3 + h4 * 0.7);
+    float kickBurst = 1.0 + u_kick * 3.0 * (0.3 + h4 * 0.7) * u_twKick;
 
     // RMS: overall loudness makes everything bigger
-    float loudnessScale = 1.0 + u_rms * 1.2;
+    float loudnessScale = 1.0 + u_rms * 1.2 * u_twReact;
 
     // Energy: high energy = stars swell toward center
     float energySwell = 1.0 + u_energy * 0.8 * nearCenter;
 
-    float sz = a_size * pulse * bandSwell * kickBurst * loudnessScale * energySwell;
+    float sz = a_size * u_twSize * pulse * bandSwell * kickBurst * loudnessScale * energySwell;
     sz = max(sz, 0.4);
 
     // Billboard
@@ -444,7 +473,7 @@ void main() {
     // Energy drives the whole field
     bright *= 0.7 + u_energy * 0.8;
 
-    col *= bright;
+    col *= bright * u_twBright;
 
     // Alpha: always visible, but louder = more opaque
     float alpha = 0.2 + a_bright * 0.4;                  // base: always visible
@@ -521,9 +550,11 @@ uniform float u_high;
 uniform float u_energy;
 uniform float u_time;
 uniform float u_camDist;
-uniform float u_hueHole;   // black hole hue shift in radians
-uniform float u_hueAll;    // global hue shift
-uniform float u_satMul;    // saturation multiplier
+uniform float u_hueHole;
+uniform float u_hueAll;
+uniform float u_satMul;
+uniform float u_twBloom, u_twTwist, u_twChroma, u_twLens, u_twWaves;
+uniform float u_twVoid, u_twRing, u_twCorona;
 uniform vec2 u_resolution;
 
 vec3 hueShift(vec3 c, float angle) {
@@ -567,12 +598,12 @@ void main() {
 
     // Gravitational lensing — stronger on drops, scales with zoom
     float lensRadius = (0.12 + u_flux * 0.08 + u_kick * 0.06) * zs;
-    float lensStrength = (0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03) * zs;
+    float lensStrength = (0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03) * zs * u_twLens;
     float lensFactor = smoothstep(lensRadius, 0.0, dist);
     vec2 lensedUV = clamp(uv + dir * lensFactor * lensStrength, 0.0, 1.0);
 
     // === SPACETIME TWIST: bass swirls space near the center ===
-    float twistStrength = u_bass * 0.15 + u_energy * 0.05;
+    float twistStrength = (u_bass * 0.15 + u_energy * 0.05) * u_twTwist;
     float twistFalloff = smoothstep(0.25 * zs, 0.0, dist);
     float twistAngle = twistStrength * twistFalloff;
     vec2 twisted = lensedUV - center;
@@ -593,11 +624,11 @@ void main() {
         pulseWave += pulse;
     }
     // Pulse distorts UV radially — strength driven by kick + flux
-    float pulseDistort = pulseWave * (u_kick * 0.015 + u_flux * 0.008);
+    float pulseDistort = pulseWave * (u_kick * 0.015 + u_flux * 0.008) * u_twWaves;
     lensedUV = clamp(lensedUV + dir * pulseDistort, 0.0, 1.0);
 
     // === CHROMATIC ABERRATION: RGB split increases with energy ===
-    float chromaStrength = (u_energy * 0.003 + u_kick * 0.006 + u_flux * 0.002) * zs;
+    float chromaStrength = (u_energy * 0.003 + u_kick * 0.006 + u_flux * 0.002) * zs * u_twChroma;
     // Near center = stronger aberration
     float chromaFalloff = smoothstep(0.3 * zs, 0.0, dist);
     float chroma = chromaStrength * (0.3 + chromaFalloff * 0.7);
@@ -608,7 +639,7 @@ void main() {
     col.b = texture(u_scene, clamp(lensedUV - dir * chroma, 0.0, 1.0)).b;
 
     // Bloom: subtle, preserves star clarity
-    float bloomStr = 0.15 + u_rms * 0.25 + u_high * 0.1;
+    float bloomStr = (0.15 + u_rms * 0.25 + u_high * 0.1) * u_twBloom;
     vec3 bloom = vec3(0.0);
     float bSize = (2.0 + u_rms * 2.5) / u_resolution.x;
     for (int i = 0; i < 8; i++) {
@@ -672,23 +703,23 @@ void main() {
     float ringDist = abs(warpedDist - ringR);
     float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
     float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
-    col += holeColor * 2.5 * ring;
+    col += holeColor * 2.5 * ring * u_twRing;
 
     // === SECONDARY RING: outer halo ===
     float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
     float outerDist2 = abs(warpedDist - outerR);
     float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
     vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
-    col += outerCol * 0.6 * outerRing;
+    col += outerCol * 0.6 * outerRing * u_twRing;
 
     // === ENERGY CORONA: when it really goes hard, light floods outward ===
     float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
-    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8;
+    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8 * u_twCorona;
     vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
     col += coronaCol * corona;
 
     // === BLACK HOLE VOID: grows with energy ===
-    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale;
+    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale * u_twVoid;
     float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
     col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
 
@@ -985,7 +1016,11 @@ function getU(gl, prog, names) {
         'u_flux','u_zcr','u_energy','u_time','u_aspect','u_resolution',
         'u_bands03','u_bands47','u_bands89','u_scene',
         'u_viewProj','u_camRight','u_camUp','u_camDist',
-        'u_hueStars','u_hueHole','u_hueAll','u_satMul'];
+        'u_hueStars','u_hueHole','u_hueAll','u_satMul',
+        'u_twGravity','u_twOrbit','u_twBassPush','u_twKick',
+        'u_twSize','u_twReact','u_twBright',
+        'u_twBloom','u_twTwist','u_twChroma','u_twLens','u_twWaves',
+        'u_twVoid','u_twRing','u_twCorona'];
     const uR = getU(gl, renderProg, uNames);
     const uP = getU(gl, postProg, uNames);
 
@@ -1213,6 +1248,39 @@ function getU(gl, prog, names) {
     });
     document.getElementById('debug-toggle').addEventListener('click', () => debugOverlay.classList.toggle('visible'));
 
+    // --- Tweak panel ---
+    const tweakPanel = document.getElementById('tweak-panel');
+    document.getElementById('tweak-toggle').addEventListener('click', () => tweakPanel.classList.toggle('visible'));
+
+    const tweaks = {
+        gravity:1, orbit:1, bassPush:1, kick:1,
+        size:1, react:1, bright:1,
+        bloom:1, twist:1, chroma:1, lens:1, waves:1,
+        void:1, ring:1, corona:1
+    };
+    const tweakMap = {
+        'tw-gravity':'gravity', 'tw-orbit':'orbit', 'tw-bass-push':'bassPush', 'tw-kick':'kick',
+        'tw-size':'size', 'tw-react':'react', 'tw-bright':'bright',
+        'tw-bloom':'bloom', 'tw-twist':'twist', 'tw-chroma':'chroma', 'tw-lens':'lens', 'tw-waves':'waves',
+        'tw-void':'void', 'tw-ring':'ring', 'tw-corona':'corona'
+    };
+    for (const [id, key] of Object.entries(tweakMap)) {
+        const slider = document.getElementById(id);
+        const valEl = document.getElementById(id + '-val');
+        slider.addEventListener('input', () => {
+            tweaks[key] = parseFloat(slider.value) / 100.0;
+            valEl.textContent = slider.value;
+        });
+    }
+    document.getElementById('tw-reset').addEventListener('click', () => {
+        for (const [id, key] of Object.entries(tweakMap)) {
+            tweaks[key] = 1.0;
+            const slider = document.getElementById(id);
+            slider.value = 100;
+            document.getElementById(id + '-val').textContent = '100';
+        }
+    });
+
     // --- Color settings ---
     const settingsPanel = document.getElementById('settings-panel');
     document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
@@ -1425,6 +1493,22 @@ function getU(gl, prog, names) {
         if (u.u_camRight !== null) gl.uniform3fv(u.u_camRight, cam.right);
         if (u.u_camUp !== null) gl.uniform3fv(u.u_camUp, cam.up);
         if (u.u_camDist !== null) gl.uniform1f(u.u_camDist, cam.dist);
+        // Tweaks
+        if (u.u_twGravity !== null) gl.uniform1f(u.u_twGravity, tweaks.gravity);
+        if (u.u_twOrbit !== null) gl.uniform1f(u.u_twOrbit, tweaks.orbit);
+        if (u.u_twBassPush !== null) gl.uniform1f(u.u_twBassPush, tweaks.bassPush);
+        if (u.u_twKick !== null) gl.uniform1f(u.u_twKick, tweaks.kick);
+        if (u.u_twSize !== null) gl.uniform1f(u.u_twSize, tweaks.size);
+        if (u.u_twReact !== null) gl.uniform1f(u.u_twReact, tweaks.react);
+        if (u.u_twBright !== null) gl.uniform1f(u.u_twBright, tweaks.bright);
+        if (u.u_twBloom !== null) gl.uniform1f(u.u_twBloom, tweaks.bloom);
+        if (u.u_twTwist !== null) gl.uniform1f(u.u_twTwist, tweaks.twist);
+        if (u.u_twChroma !== null) gl.uniform1f(u.u_twChroma, tweaks.chroma);
+        if (u.u_twLens !== null) gl.uniform1f(u.u_twLens, tweaks.lens);
+        if (u.u_twWaves !== null) gl.uniform1f(u.u_twWaves, tweaks.waves);
+        if (u.u_twVoid !== null) gl.uniform1f(u.u_twVoid, tweaks.void);
+        if (u.u_twRing !== null) gl.uniform1f(u.u_twRing, tweaks.ring);
+        if (u.u_twCorona !== null) gl.uniform1f(u.u_twCorona, tweaks.corona);
         if (u.u_hueStars !== null) gl.uniform1f(u.u_hueStars, colorSettings.hueAll + colorSettings.hueStars);
         if (u.u_hueHole !== null) gl.uniform1f(u.u_hueHole, colorSettings.hueHole);
         if (u.u_hueAll !== null) gl.uniform1f(u.u_hueAll, colorSettings.hueAll);
