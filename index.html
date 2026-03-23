@@ -110,6 +110,23 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   color: rgba(255,255,255,0.2); font-size: 0.5rem; cursor: pointer;
   letter-spacing: 0.05em; text-transform: uppercase;
 }
+.tw-btn {
+  background: none; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.3);
+  cursor: pointer; padding: 4px 12px; font-family: inherit; font-size: 0.5rem;
+  border-radius: 3px; letter-spacing: 0.08em; transition: all 0.15s;
+}
+.tw-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.6); }
+.preset-btn {
+  background: none; border: 1px solid rgba(140,80,255,0.2); color: rgba(140,80,255,0.5);
+  cursor: pointer; padding: 2px 8px; font-family: inherit; font-size: 0.5rem;
+  border-radius: 3px; margin: 2px; transition: all 0.15s;
+}
+.preset-btn:hover { border-color: rgba(140,80,255,0.5); color: rgba(140,80,255,0.8); }
+.preset-del {
+  background: none; border: none; color: rgba(255,80,80,0.3); cursor: pointer;
+  font-size: 0.55rem; padding: 0 2px; margin-left: 2px;
+}
+.preset-del:hover { color: rgba(255,80,80,0.7); }
 
 /* Auto checkbox — custom styled */
 .auto-cb {
@@ -211,9 +228,12 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="setting-row"><label>Void Size</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
   <div class="setting-row"><label>Ring Glow</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
   <div class="setting-row"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
-  <div class="setting-row" style="margin-top:8px;border:none;justify-content:center">
-    <button id="tw-reset" style="background:none;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.3);cursor:pointer;padding:4px 16px;font-family:inherit;font-size:0.55rem;border-radius:3px;letter-spacing:0.1em">RESET ALL</button>
+  <div style="display:flex;gap:6px;margin-top:10px;justify-content:center">
+    <button class="tw-btn" id="tw-save">SAVE</button>
+    <button class="tw-btn" id="tw-load">LOAD</button>
+    <button class="tw-btn" id="tw-reset">RESET</button>
   </div>
+  <div id="tw-presets" style="margin-top:6px"></div>
 </div>
 
 <div class="panel" id="debug-overlay" style="right:12px">
@@ -1284,14 +1304,126 @@ function getU(gl, prog, names) {
             valEl.textContent = slider.value;
         });
     }
+    // --- Save / Load / Reset presets (localStorage) ---
+    const PRESETS_KEY = 'singularity-presets';
+
+    function getAllSettings() {
+        const s = {};
+        // Tweaks
+        for (const [id, key] of Object.entries(tweakMap)) s['tw:' + key] = tweaks[key];
+        // Auto categories
+        for (const cat in catAuto) s['auto:' + cat] = catAuto[cat];
+        // Color settings
+        for (const k in colorSettings) s['col:' + k] = colorSettings[k];
+        // Color auto checkboxes
+        ['auto-hue-all','auto-hue-stars','auto-hue-hole'].forEach(id => {
+            s['cb:' + id] = document.getElementById(id).checked;
+        });
+        return s;
+    }
+
+    function applySettings(s) {
+        // Tweaks
+        for (const [id, key] of Object.entries(tweakMap)) {
+            if (('tw:' + key) in s) {
+                tweaks[key] = s['tw:' + key];
+                const v = Math.round(s['tw:' + key] * 100);
+                document.getElementById(id).value = v;
+                document.getElementById(id + '-val').textContent = v;
+            }
+        }
+        // Auto categories
+        for (const cat in catAuto) {
+            if (('auto:' + cat) in s) {
+                catAuto[cat] = s['auto:' + cat];
+                const cb = document.getElementById('auto-' + cat);
+                cb.checked = catAuto[cat];
+                cb.dispatchEvent(new Event('change'));
+            }
+        }
+        // Colors
+        const colKeys = { hueAll: 'hue-all', hueStars: 'hue-stars', hueHole: 'hue-hole', satMul: 'sat-all' };
+        for (const [key, id] of Object.entries(colKeys)) {
+            if (('col:' + key) in s) {
+                colorSettings[key] = s['col:' + key];
+                const v = key === 'satMul' ? Math.round(s['col:' + key] * 100) : Math.round(s['col:' + key] * 180 / Math.PI);
+                document.getElementById(id).value = v;
+                document.getElementById(id + '-val').textContent = v;
+            }
+        }
+        // Color auto checkboxes
+        ['auto-hue-all','auto-hue-stars','auto-hue-hole'].forEach(id => {
+            if (('cb:' + id) in s) {
+                const cb = document.getElementById(id);
+                cb.checked = s['cb:' + id];
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    function getSavedPresets() {
+        try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || {}; }
+        catch(e) { return {}; }
+    }
+
+    function renderPresets() {
+        const container = document.getElementById('tw-presets');
+        const presets = getSavedPresets();
+        const names = Object.keys(presets);
+        if (!names.length) { container.innerHTML = ''; return; }
+        container.innerHTML = names.map(name =>
+            `<span style="display:inline-flex;align-items:center;margin:1px">` +
+            `<button class="preset-btn" data-name="${name}">${name}</button>` +
+            `<button class="preset-del" data-name="${name}">&times;</button></span>`
+        ).join('');
+        container.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const p = getSavedPresets()[btn.dataset.name];
+                if (p) applySettings(p);
+            });
+        });
+        container.querySelectorAll('.preset-del').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const presets = getSavedPresets();
+                delete presets[btn.dataset.name];
+                localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+                renderPresets();
+            });
+        });
+    }
+
+    document.getElementById('tw-save').addEventListener('click', () => {
+        const name = prompt('Preset name:');
+        if (!name || !name.trim()) return;
+        const presets = getSavedPresets();
+        presets[name.trim()] = getAllSettings();
+        localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+        renderPresets();
+    });
+
+    document.getElementById('tw-load').addEventListener('click', () => {
+        const presets = getSavedPresets();
+        const names = Object.keys(presets);
+        if (!names.length) { alert('No saved presets'); return; }
+        const name = prompt('Load preset:\n' + names.join(', '));
+        if (name && presets[name]) applySettings(presets[name]);
+    });
+
     document.getElementById('tw-reset').addEventListener('click', () => {
         for (const [id, key] of Object.entries(tweakMap)) {
             tweaks[key] = 1.0;
-            const slider = document.getElementById(id);
-            slider.value = 100;
+            document.getElementById(id).value = 100;
             document.getElementById(id + '-val').textContent = '100';
         }
+        for (const cat in catAuto) {
+            catAuto[cat] = false;
+            const cb = document.getElementById('auto-' + cat);
+            cb.checked = false;
+            cb.dispatchEvent(new Event('change'));
+        }
     });
+
+    renderPresets();
 
     // Category auto checkboxes — disable sliders in that group when checked
     const catGroups = {
