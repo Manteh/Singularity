@@ -197,7 +197,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
     <button id="demo-btn" class="dz-btn">DEMO SONG</button>
   </div>
   <div id="yt-input-row">
-    <input type="text" id="yt-url" placeholder="Paste YouTube link..." spellcheck="false" autocomplete="off">
+    <input type="text" id="yt-url" placeholder="Paste audio URL (.mp3, .wav, ...)" spellcheck="false" autocomplete="off">
     <button id="yt-go" class="dz-btn" style="letter-spacing:0.1em">GO</button>
   </div>
   <div id="yt-status"></div>
@@ -1282,82 +1282,26 @@ function getU(gl, prog, names) {
     fileInput.addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
     document.getElementById('demo-btn').addEventListener('click', () => loadAudioFile('demo.mp3'));
 
-    // --- YouTube URL loading ---
-    const ytUrl = document.getElementById('yt-url');
-    const ytStatus = document.getElementById('yt-status');
+    // --- Audio URL loading ---
+    const urlInput = document.getElementById('yt-url');
+    const urlStatus = document.getElementById('yt-status');
 
-    function isYouTubeUrl(url) {
-        return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/.test(url);
+    async function loadFromUrl(url) {
+        if (!url) return;
+        urlStatus.textContent = 'Loading...';
+        urlStatus.className = 'loading';
+        try {
+            await loadAudioFile(url);
+            urlStatus.textContent = '';
+            urlStatus.className = '';
+        } catch (e) {
+            urlStatus.textContent = 'Failed to load URL';
+            urlStatus.className = 'error';
+        }
     }
 
-    // List of cobalt API instances to try (main + community mirrors)
-    const COBALT_INSTANCES = [
-        'https://api.cobalt.tools',
-        'https://cobalt-api.ayo.tf',
-        'https://cobalt.api.timelessnesses.me'
-    ];
-
-    async function loadFromYouTube(url) {
-        if (!isYouTubeUrl(url)) {
-            ytStatus.textContent = 'Not a valid YouTube link';
-            ytStatus.className = 'error';
-            return;
-        }
-        ytStatus.textContent = 'Extracting audio...';
-        ytStatus.className = 'loading';
-
-        const body = JSON.stringify({
-            url: url,
-            downloadMode: 'audio',
-            audioFormat: 'mp3'
-        });
-        const headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        };
-
-        let lastError = '';
-        for (const instance of COBALT_INSTANCES) {
-            try {
-                const resp = await fetch(instance, {
-                    method: 'POST', headers, body
-                });
-
-                const data = await resp.json().catch(() => null);
-                if (!data) { lastError = 'Invalid response'; continue; }
-                if (data.status === 'error') { lastError = data.error?.code || data.text || 'Extraction failed'; continue; }
-
-                // Extract audio URL from response (format varies by status)
-                let audioUrl = null;
-                if (data.status === 'tunnel' || data.status === 'redirect') {
-                    audioUrl = data.url;
-                } else if (data.status === 'local-processing') {
-                    audioUrl = data.url || (data.tunnel && data.tunnel[0]);
-                } else if (data.url) {
-                    audioUrl = data.url;
-                }
-
-                if (!audioUrl) { lastError = 'No audio URL in response'; continue; }
-
-                ytStatus.textContent = 'Loading audio...';
-                await loadAudioFile(audioUrl);
-                ytStatus.textContent = '';
-                ytStatus.className = '';
-                return; // success
-            } catch (e) {
-                lastError = e.message;
-                continue; // try next instance
-            }
-        }
-
-        // All instances failed
-        console.error('[SINGULARITY] YouTube extract failed:', lastError);
-        ytStatus.textContent = 'Failed: ' + lastError;
-        ytStatus.className = 'error';
-    }
-
-    document.getElementById('yt-go').addEventListener('click', () => loadFromYouTube(ytUrl.value.trim()));
-    ytUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromYouTube(ytUrl.value.trim()); });
+    document.getElementById('yt-go').addEventListener('click', () => loadFromUrl(urlInput.value.trim()));
+    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromUrl(urlInput.value.trim()); });
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
