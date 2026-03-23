@@ -277,29 +277,31 @@ void main() {
     float nearCenter = smoothstep(0.6, 0.03, pDist);
 
     // =============================================
-    // SIZE: Controlled — responsive but never blown out
+    // SIZE: This is where music energy lives
+    // Stars BREATHE, SWELL, and PULSE with the music
     // =============================================
 
-    // Per-star heartbeat
+    // Each star has its own heartbeat synced to its frequency band
     float myPulseSpeed = 1.5 + h1 * 2.5;
-    float pulseDepth = 0.15 + bVal * 0.3;
-    float pulse = 1.0 - pulseDepth + pulseDepth * (0.5 + 0.5 * sin(myTime1 * myPulseSpeed + h2 * 6.28));
+    float myPulsePhase = h2 * 6.28;
+    // Pulse amplitude increases when this star's band is active
+    float pulseDepth = 0.2 + bVal * 0.5;
+    float pulse = 1.0 - pulseDepth + pulseDepth * (0.5 + 0.5 * sin(myTime1 * myPulseSpeed + myPulsePhase));
 
-    // Band swell: capped — noticeable but not explosive
-    float bandSwell = 1.0 + bVal * 1.5;
+    // Band reactivity: star SWELLS when its frequency hits hard
+    float bandSwell = 1.0 + bVal * bVal * 4.0;
 
-    // Kick: quick pop, not explosion
-    float kickBurst = 1.0 + u_kick * 1.2 * h4;
+    // Kick: sudden size burst, per-particle reactivity
+    float kickBurst = 1.0 + u_kick * 3.0 * (0.3 + h4 * 0.7);
 
-    // RMS: gentle scaling
-    float loudnessScale = 0.9 + u_rms * 0.4;
+    // RMS: overall loudness makes everything bigger
+    float loudnessScale = 1.0 + u_rms * 1.2;
 
-    // Energy near center
-    float energySwell = 1.0 + u_energy * 0.4 * nearCenter;
+    // Energy: high energy = stars swell toward center
+    float energySwell = 1.0 + u_energy * 0.8 * nearCenter;
 
     float sz = a_size * pulse * bandSwell * kickBurst * loudnessScale * energySwell;
     sz = max(sz, 0.4);
-    sz = min(sz, a_size * 6.0); // hard cap: never more than 6x base size
 
     // Billboard
     vec3 billboard = pos3 + (u_camRight * a_quad.x + u_camUp * a_quad.y) * sz * 0.006;
@@ -307,69 +309,67 @@ void main() {
     v_uv = a_quad;
 
     // =============================================
-    // COLOR: Rich, saturated — energy shifts hue, not just brightness
+    // COLOR: Stars change hue, temperature, and
+    // intensity based on what the music is doing
     // =============================================
 
-    // Base from spectral centroid
+    // Base color from spectral centroid (overall music tone)
     vec3 baseCol = spectralColor(u_centroid);
+
+    // Band color — each star has its own frequency identity
     vec3 bC = bandColor(band);
 
-    // Band activity shifts toward band color
-    float bandActivity = bVal * 0.6 * (0.4 + h7 * 0.6);
+    // When this star's band is active, it shifts toward its band color
+    // When quiet, it falls back to the ambient spectral color
+    float bandActivity = bVal * 0.7 * (0.4 + h7 * 0.6);
     vec3 col = mix(baseCol, bC, bandActivity);
 
-    // Bass: shift toward deep ember tones (not white/bright)
-    vec3 bassEmber = vec3(0.6, 0.08, 0.25);
-    col = mix(col, bassEmber, u_bass * 0.2 * (0.5 + h5 * 0.5));
+    // Bass makes stars warmer (shifts toward magenta/red)
+    vec3 bassWarm = vec3(0.9, 0.2, 0.5);
+    col = mix(col, bassWarm, u_bass * 0.25 * (0.5 + h5 * 0.5));
 
-    // Highs: subtle cool shimmer on bright stars (not white flash)
+    // High frequencies make bright stars flash white (shimmer)
     float shimmerRate = 3.0 + h1 * 5.0;
     float shimmer = u_high * a_bright * (0.5 + 0.5 * sin(myTime3 * shimmerRate));
-    vec3 shimmerCol = vec3(0.5, 0.7, 1.0); // cool blue shimmer instead of white
-    col = mix(col, shimmerCol, shimmer * 0.3);
+    col = mix(col, vec3(1.0), shimmer * 0.5);
 
-    // Near center: deeper, more saturated purple — not brighter
-    vec3 coreHot = vec3(0.5, 0.15, 0.7);
-    col = mix(col, coreHot, nearCenter * 0.5);
+    // Near center = hotter, more saturated
+    col = mix(col, col * 2.0 + vec3(0.25, 0.1, 0.45), nearCenter * 0.6);
 
-    // Kick: brief color shift toward electric cyan, not white
-    vec3 kickColor = vec3(0.3, 0.7, 1.0);
-    col = mix(col, kickColor, u_kick * 0.2 * (0.3 + h4 * 0.7));
-
-    // Energy: high energy saturates color deeper, not brighter
-    vec3 energyTint = vec3(0.4, 0.1, 0.6); // deep violet
-    col = mix(col, col + energyTint * 0.2, u_energy * 0.3);
+    // Kick flash: momentary white-hot burst
+    col = mix(col, vec3(1.0, 0.9, 0.95), u_kick * 0.3 * (0.3 + h4 * 0.7));
 
     // =============================================
-    // BRIGHTNESS: Controlled — never blows out
+    // BRIGHTNESS & ALPHA: Loudness = visibility
+    // Stars glow brighter when the music is loud
     // =============================================
 
-    float bright = 0.5 + a_bright * 0.5;
+    // Base brightness from star class
+    float bright = 0.4 + a_bright * 0.6;
 
-    // RMS: gentle lift
-    bright *= 0.7 + u_rms * 0.5;
+    // RMS loudness drives overall brightness
+    bright *= 0.6 + u_rms * 1.0;
 
-    // Band: subtle flare
-    bright *= 1.0 + bVal * 0.6;
+    // Band activity makes individual stars flare
+    bright *= 1.0 + bVal * bVal * 1.5;
 
-    // Energy: modest overall lift
-    bright *= 0.8 + u_energy * 0.4;
+    // Energy drives the whole field
+    bright *= 0.7 + u_energy * 0.8;
 
-    // Cap brightness to prevent blowout
-    bright = min(bright, 2.0);
     col *= bright;
 
-    // Alpha: visible always, gently responsive
-    float alpha = 0.25 + a_bright * 0.35;
-    alpha += u_energy * 0.15;
-    alpha += bVal * 0.2;
-    alpha += nearCenter * 0.35;
-    alpha += u_kick * 0.1 * h4;
-    alpha *= pulse;
-    alpha = min(alpha, 0.95);
+    // Alpha: always visible, but louder = more opaque
+    float alpha = 0.2 + a_bright * 0.4;                  // base: always visible
+    alpha += u_energy * 0.25;                             // energy lifts everything
+    alpha += bVal * bVal * 0.3;                           // band activity
+    alpha += nearCenter * 0.4;                            // denser near center
+    alpha += u_kick * 0.2 * h4;                           // kick flash
+    alpha *= pulse;                                        // breathe with heartbeat
 
-    // Core sharpness
-    v_coreSharp = 1.5 + a_bright * 3.0 + u_energy * 1.5 + nearCenter * 2.0;
+    // Core sharpness: driven by energy and brightness
+    // High energy = sharper, more defined stars
+    // Low energy = softer, dreamier
+    v_coreSharp = 1.5 + a_bright * 3.0 + u_energy * 2.0 + nearCenter * 2.0;
 
     v_color = vec4(col, min(alpha, 1.0));
 }
@@ -396,8 +396,8 @@ void main() {
     float spike = pow(abs(cos(angle * 2.0)), 40.0) * exp(-d * 2.5) * 0.12 * v_color.a;
 
     vec3 col = v_color.rgb * (shape + spike);
-    // Subtle hot core tint
-    col += vec3(0.1, 0.06, 0.15) * core * core * v_color.a;
+    // Hot white core
+    col += vec3(0.2, 0.15, 0.3) * core * core * v_color.a;
 
     float alpha = v_color.a * (shape + spike * 0.4);
     fragColor = vec4(col, alpha);
@@ -460,8 +460,8 @@ void main() {
 
     vec3 col = texture(u_scene, lensedUV).rgb;
 
-    // Bloom: restrained — adds atmosphere, never washes out
-    float bloomStr = 0.1 + u_rms * 0.12 + u_high * 0.05;
+    // Bloom: subtle, preserves star clarity
+    float bloomStr = 0.15 + u_rms * 0.25 + u_high * 0.1;
     vec3 bloom = vec3(0.0);
     float bSize = (2.0 + u_rms * 2.5) / u_resolution.x;
     for (int i = 0; i < 8; i++) {
@@ -484,13 +484,13 @@ void main() {
     float dropHeat = u_kick * 0.5 + u_bass * 0.3 + energy * 0.2;
     dropHeat = min(dropHeat, 1.0);
 
-    // === HORIZON COLOR: deep space temperature gradient ===
-    // Calm: void indigo → building: nebula purple → peak: electric teal
-    vec3 coldCol  = vec3(0.08, 0.03, 0.2);        // void indigo
-    vec3 warmCol  = vec3(0.35, 0.06, 0.4);        // dark nebula
-    vec3 hotCol   = vec3(0.55, 0.1, 0.5);         // magenta
-    vec3 burnCol  = vec3(0.15, 0.35, 0.7);        // deep electric blue
-    vec3 peakCol  = vec3(0.2, 0.6, 0.7);          // teal peak (not white)
+    // === HORIZON COLOR: space palette temperature gradient ===
+    // Calm: deep violet/blue → building: magenta/purple → peak: cyan/white-hot
+    vec3 coldCol  = vec3(0.15, 0.05, 0.4);        // deep space violet
+    vec3 warmCol  = vec3(0.6, 0.1, 0.6);          // nebula purple
+    vec3 hotCol   = vec3(0.9, 0.15, 0.7);         // hot magenta
+    vec3 burnCol  = vec3(0.3, 0.5, 1.0);          // electric blue
+    vec3 peakCol  = vec3(0.7, 0.9, 1.0);          // white-cyan peak
 
     vec3 holeColor;
     if (dropHeat < 0.2) {
@@ -524,19 +524,19 @@ void main() {
     float ringR = (0.03 + u_rms * 0.012 + energy * 0.025 + u_kick * 0.035) * zoomScale;
     float ringDist = abs(warpedDist - ringR);
     float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
-    float ring = exp(-ringDist * ringDist * ringWidth) * (0.4 + energy * 1.2 + u_kick * 0.8);
-    col += holeColor * 1.8 * ring;
+    float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
+    col += holeColor * 2.5 * ring;
 
     // === SECONDARY RING: outer halo ===
     float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
     float outerDist2 = abs(warpedDist - outerR);
-    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.1 + energy * 0.3 + u_kick * 0.15);
+    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
     vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
     col += outerCol * 0.6 * outerRing;
 
     // === ENERGY CORONA: when it really goes hard, light floods outward ===
     float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
-    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.4;
+    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8;
     vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
     col += coronaCol * corona;
 
@@ -545,8 +545,8 @@ void main() {
     float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
     col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
 
-    // Kick flash — subtle tinted pulse
-    col += vec3(0.15, 0.08, 0.25) * u_kick * 0.08;
+    // Kick flash — tinted purple instead of white
+    col += vec3(0.3, 0.15, 0.5) * u_kick * 0.15;
 
     // Vignette
     col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
