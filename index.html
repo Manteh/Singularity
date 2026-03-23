@@ -27,7 +27,31 @@ canvas { display: block; width: 100vw; height: 100vh; }
   font-family: inherit; border-radius: 3px;
 }
 #drop-zone label:hover { border-color: #f80; color: #f80; }
-#demo-btn:hover { border-color: #a0f !important; color: #a0f !important; }
+.dz-btn {
+  padding: 10px 28px; border: 1px solid #333; cursor: pointer; font-size: 0.75rem;
+  color: #666; background: none; font-family: inherit; letter-spacing: 0.15em;
+  border-radius: 3px; transition: all 0.3s;
+}
+#demo-btn:hover { border-color: #a0f; color: #a0f; }
+#yt-go:hover { border-color: #f44; color: #f44; }
+
+#yt-input-row {
+  display: flex; gap: 8px; align-items: center; width: 100%; max-width: 420px;
+}
+#yt-url {
+  flex: 1; background: rgba(255,255,255,0.04); border: 1px solid #333;
+  color: #aaa; padding: 9px 14px; font-size: 0.75rem; font-family: inherit;
+  border-radius: 3px; outline: none; transition: border-color 0.2s;
+}
+#yt-url:focus { border-color: #666; }
+#yt-url::placeholder { color: #444; }
+#yt-go { padding: 9px 18px; }
+#yt-status {
+  color: #555; font-size: 0.7rem; margin-top: 8px; min-height: 1.2em;
+  transition: color 0.2s;
+}
+#yt-status.error { color: #f55; }
+#yt-status.loading { color: #a0f; }
 
 /* ---- Bottom audio controls ---- */
 #controls {
@@ -168,10 +192,15 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 <div id="drop-zone">
   <h1>Singularity</h1>
   <p>Drop an audio file or click to load</p>
-  <div style="display:flex;gap:16px">
+  <div style="display:flex;gap:12px;margin-bottom:16px">
     <label for="file-input">LOAD AUDIO</label>
-    <button id="demo-btn" style="padding:12px 32px;border:1px solid #333;cursor:pointer;font-size:0.85rem;color:#666;background:none;font-family:inherit;letter-spacing:0.2em;transition:all 0.3s">DEMO SONG</button>
+    <button id="demo-btn" class="dz-btn">DEMO SONG</button>
   </div>
+  <div id="yt-input-row">
+    <input type="text" id="yt-url" placeholder="Paste YouTube link..." spellcheck="false" autocomplete="off">
+    <button id="yt-go" class="dz-btn" style="letter-spacing:0.1em">GO</button>
+  </div>
+  <div id="yt-status"></div>
   <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus,audio/*">
 </div>
 
@@ -1252,6 +1281,60 @@ function getU(gl, prog, names) {
 
     fileInput.addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
     document.getElementById('demo-btn').addEventListener('click', () => loadAudioFile('demo.mp3'));
+
+    // --- YouTube URL loading ---
+    const ytUrl = document.getElementById('yt-url');
+    const ytStatus = document.getElementById('yt-status');
+
+    function isYouTubeUrl(url) {
+        return /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/.test(url);
+    }
+
+    async function loadFromYouTube(url) {
+        if (!isYouTubeUrl(url)) {
+            ytStatus.textContent = 'Not a valid YouTube link';
+            ytStatus.className = 'error';
+            return;
+        }
+        ytStatus.textContent = 'Extracting audio...';
+        ytStatus.className = 'loading';
+
+        try {
+            const resp = await fetch('https://api.cobalt.tools/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: url,
+                    audioFormat: 'mp3',
+                    isAudioOnly: true,
+                    filenameStyle: 'basic'
+                })
+            });
+
+            if (!resp.ok) throw new Error('Service returned ' + resp.status);
+            const data = await resp.json();
+
+            if (data.status === 'error') throw new Error(data.text || 'Extraction failed');
+
+            const audioUrl = data.url;
+            if (!audioUrl) throw new Error('No audio URL returned');
+
+            ytStatus.textContent = 'Loading audio...';
+            await loadAudioFile(audioUrl);
+            ytStatus.textContent = '';
+            ytStatus.className = '';
+        } catch (e) {
+            console.error('[SINGULARITY] YouTube extract error:', e);
+            ytStatus.textContent = 'Failed: ' + e.message;
+            ytStatus.className = 'error';
+        }
+    }
+
+    document.getElementById('yt-go').addEventListener('click', () => loadFromYouTube(ytUrl.value.trim()));
+    ytUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadFromYouTube(ytUrl.value.trim()); });
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
