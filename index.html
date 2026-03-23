@@ -98,6 +98,18 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   color: rgba(255,255,255,0.2); min-width: 24px; text-align: right;
   font-size: 0.55rem; font-variant-numeric: tabular-nums;
 }
+.cat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.cat-header:first-child { margin-top: 0; }
+.cat-header h3 { margin: 0; }
+.cat-auto {
+  display: flex; align-items: center; gap: 4px;
+  color: rgba(255,255,255,0.2); font-size: 0.5rem; cursor: pointer;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
 
 /* Auto checkbox — custom styled */
 .auto-cb {
@@ -180,22 +192,22 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 </div>
 
 <div class="panel" id="tweak-panel" style="left:12px;top:36px;max-height:calc(100vh - 100px);overflow-y:auto">
-  <h3>Physics</h3>
+  <div class="cat-header"><h3>Physics</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-physics">auto</label></div>
   <div class="setting-row"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span></div>
   <div class="setting-row"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span></div>
   <div class="setting-row"><label>Bass Push</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span></div>
   <div class="setting-row"><label>Kick Burst</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span></div>
-  <h3 style="margin-top:8px">Stars</h3>
+  <div class="cat-header"><h3>Stars</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-stars">auto</label></div>
   <div class="setting-row"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span></div>
   <div class="setting-row"><label>Reactivity</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span></div>
   <div class="setting-row"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span></div>
   <div class="setting-row"><label>Brightness</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span></div>
-  <h3 style="margin-top:8px">Spacetime</h3>
+  <div class="cat-header"><h3>Spacetime</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-spacetime">auto</label></div>
   <div class="setting-row"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span></div>
   <div class="setting-row"><label>Chromatic</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span></div>
   <div class="setting-row"><label>Lensing</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span></div>
   <div class="setting-row"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span></div>
-  <h3 style="margin-top:8px">Black Hole</h3>
+  <div class="cat-header"><h3>Black Hole</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-blackhole">auto</label></div>
   <div class="setting-row"><label>Void Size</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
   <div class="setting-row"><label>Ring Glow</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
   <div class="setting-row"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
@@ -1281,6 +1293,67 @@ function getU(gl, prog, names) {
         }
     });
 
+    // Category auto checkboxes — disable sliders in that group when checked
+    const catGroups = {
+        physics: ['tw-gravity','tw-orbit','tw-bass-push','tw-kick'],
+        stars: ['tw-size','tw-react','tw-bloom','tw-bright'],
+        spacetime: ['tw-twist','tw-chroma','tw-lens','tw-waves'],
+        blackhole: ['tw-void','tw-ring','tw-corona']
+    };
+    const catAuto = { physics: false, stars: false, spacetime: false, blackhole: false };
+    for (const [cat, ids] of Object.entries(catGroups)) {
+        const cb = document.getElementById('auto-' + cat);
+        cb.addEventListener('change', () => {
+            catAuto[cat] = cb.checked;
+            ids.forEach(id => {
+                document.getElementById(id).disabled = cb.checked;
+                document.getElementById(id).style.opacity = cb.checked ? '0.3' : '1';
+            });
+        });
+    }
+
+    function setTweak(id, val) {
+        const key = tweakMap[id];
+        tweaks[key] = val / 100;
+        document.getElementById(id).value = Math.round(val);
+        document.getElementById(id + '-val').textContent = Math.round(val);
+    }
+
+    function updateAutoTweaks() {
+        const f = audio.features;
+
+        if (catAuto.physics) {
+            // Gravity surges with energy, orbit with mids
+            setTweak('tw-gravity', 60 + f.energy * 140 + f.bass * 50);
+            setTweak('tw-orbit', 50 + f.energy * 100 + f.mid * 50);
+            setTweak('tw-bass-push', 50 + f.bass * 200 + f.kick * 50);
+            setTweak('tw-kick', 50 + f.kick * 200 + f.bass * 50);
+        }
+
+        if (catAuto.stars) {
+            // Size pulses with RMS, reactivity with energy
+            setTweak('tw-size', 70 + f.rms * 100 + f.kick * 60);
+            setTweak('tw-react', 60 + f.energy * 180 + f.high * 60);
+            setTweak('tw-bloom', 50 + f.rms * 120 + f.high * 80);
+            setTweak('tw-bright', 60 + f.rms * 100 + f.energy * 80);
+        }
+
+        if (catAuto.spacetime) {
+            // Twist with bass, chromatic with energy, lensing with flux, waves with kicks
+            setTweak('tw-twist', 30 + f.bass * 250 + f.energy * 80);
+            setTweak('tw-chroma', 40 + f.energy * 200 + f.kick * 120);
+            setTweak('tw-lens', 50 + f.flux * 200 + f.bass * 100);
+            setTweak('tw-waves', 30 + f.kick * 250 + f.flux * 120);
+        }
+
+        if (catAuto.blackhole) {
+            // Void grows with energy, ring with RMS, corona with peaks
+            setTweak('tw-void', 70 + f.energy * 130 + f.kick * 50);
+            setTweak('tw-ring', 50 + f.rms * 150 + f.kick * 80);
+            setTweak('tw-corona', 30 + f.energy * 150 + f.kick * 100);
+        }
+    }
+
     // --- Color settings ---
     const settingsPanel = document.getElementById('settings-panel');
     document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
@@ -1531,6 +1604,7 @@ function getU(gl, prog, names) {
 
         audio.update(dt);
         updateAutoColor();
+        updateAutoTweaks();
 
         if (audioEl?.duration) {
             seekBar.value = (audioEl.currentTime / audioEl.duration) * 1000;
