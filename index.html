@@ -7,113 +7,141 @@
 <link rel="icon" href="data:,">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #888; }
+body { background: #000; overflow: hidden; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #999; }
 canvas { display: block; width: 100vw; height: 100vh; }
 
+/* ---- Drop zone ---- */
 #drop-zone {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  flex-direction: column; z-index: 100; background: rgba(0,0,0,0.95);
-  transition: opacity 0.5s;
+  flex-direction: column; z-index: 100; background: rgba(0,0,0,0.95); transition: opacity 0.5s;
 }
 #drop-zone.hidden { opacity: 0; pointer-events: none; }
-#drop-zone h1 { font-size: 3rem; letter-spacing: 0.5em; color: #fff; margin-bottom: 1rem; text-transform: uppercase; }
-#drop-zone p { color: #555; font-size: 0.9rem; margin-bottom: 2rem; }
+#drop-zone h1 { font-size: 2.4rem; letter-spacing: 0.4em; color: #fff; margin-bottom: 0.8rem; text-transform: uppercase; font-weight: 300; }
+#drop-zone p { color: #555; font-size: 0.8rem; margin-bottom: 2rem; font-weight: 300; }
 #drop-zone.dragover { background: rgba(20,10,5,0.95); }
 #drop-zone.dragover h1 { color: #f80; }
 #file-input { display: none; }
-#drop-zone label {
-  padding: 12px 32px; border: 1px solid #333; cursor: pointer; font-size: 0.85rem;
-  color: #666; transition: all 0.3s; letter-spacing: 0.2em;
+#drop-zone label, #demo-btn {
+  padding: 10px 28px; border: 1px solid #333; cursor: pointer; font-size: 0.75rem;
+  color: #666; transition: all 0.3s; letter-spacing: 0.15em; background: none;
+  font-family: inherit; border-radius: 3px;
 }
 #drop-zone label:hover { border-color: #f80; color: #f80; }
 #demo-btn:hover { border-color: #a0f !important; color: #a0f !important; }
 
+/* ---- Bottom audio controls ---- */
 #controls {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+  position: fixed; bottom: 0; left: 0; right: 0; height: 44px;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px);
   display: flex; align-items: center; padding: 0 16px; z-index: 50;
-  opacity: 0; transition: opacity 0.3s; gap: 12px;
+  opacity: 0; transition: opacity 0.3s; gap: 10px;
 }
 #controls.visible { opacity: 1; }
-#controls:hover { background: rgba(0,0,0,0.8); }
+#controls:hover { background: rgba(0,0,0,0.7); }
 
 #play-btn {
-  background: none; border: 1px solid #444; color: #888; width: 32px; height: 32px;
-  cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
-  border-radius: 2px; transition: all 0.2s;
+  background: none; border: 1px solid #444; color: #888; width: 28px; height: 28px;
+  cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;
+  border-radius: 3px; transition: all 0.2s;
 }
 #play-btn:hover { border-color: #aaa; color: #fff; }
+#time-display { font-size: 0.65rem; color: #555; min-width: 85px; font-variant-numeric: tabular-nums; }
 
-#time-display { font-size: 0.7rem; color: #555; min-width: 90px; }
-
-#seek-bar {
-  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
-  background: #222; outline: none; cursor: pointer; border-radius: 1px;
+/* ---- Shared slider style ---- */
+input[type=range] {
+  -webkit-appearance: none; appearance: none; height: 2px;
+  background: rgba(255,255,255,0.1); outline: none; border-radius: 1px; cursor: pointer;
 }
-#seek-bar::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 10px; height: 10px; background: #666;
-  border-radius: 50%; cursor: pointer;
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%;
+  background: #666; cursor: pointer; transition: background 0.15s;
 }
+input[type=range]:hover::-webkit-slider-thumb { background: #aaa; }
+input[type=range]:disabled { opacity: 0.3; cursor: default; }
+#seek-bar { flex: 1; }
 #seek-bar:hover::-webkit-slider-thumb { background: #f80; }
 
-#fps { position: fixed; top: 8px; right: 12px; font-size: 0.65rem; color: #333; z-index: 50; }
-#fullscreen-btn {
-  position: fixed; top: 8px; right: 60px; background: none; border: 1px solid #222;
-  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
+/* ---- Top bar buttons ---- */
+.top-btn {
+  position: fixed; top: 10px; background: none; border: none;
+  color: rgba(255,255,255,0.2); font-size: 0.6rem; padding: 3px 8px; cursor: pointer;
+  z-index: 50; letter-spacing: 0.08em; font-family: inherit; transition: color 0.2s;
+  border-radius: 2px;
 }
-#fullscreen-btn:hover { border-color: #666; color: #888; }
+.top-btn:hover { color: rgba(255,255,255,0.6); }
+#fps { position: fixed; top: 12px; right: 12px; font-size: 0.6rem; color: rgba(255,255,255,0.15); z-index: 50; font-variant-numeric: tabular-nums; }
 
-#debug-toggle {
-  position: fixed; top: 8px; right: 110px; background: none; border: 1px solid #222;
-  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
+/* ---- Panels (shared) ---- */
+.panel {
+  position: fixed; top: 36px; width: 240px; z-index: 50; display: none;
+  background: rgba(8,8,12,0.88); backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
+  padding: 14px 16px; font-size: 0.65rem;
 }
-#debug-toggle:hover { border-color: #666; color: #888; }
-
-#debug-overlay {
-  position: fixed; top: 32px; right: 12px; width: 200px; background: rgba(0,0,0,0.8);
-  padding: 8px; z-index: 50; display: none; font-size: 0.55rem;
+.panel.visible { display: block; }
+.panel h3 {
+  color: rgba(255,255,255,0.3); font-size: 0.55rem; font-weight: 500;
+  margin: 0 0 10px; letter-spacing: 0.15em; text-transform: uppercase;
 }
-#debug-overlay.visible { display: block; }
-.debug-bar { display: flex; align-items: center; margin: 2px 0; }
-.debug-bar .label { width: 70px; color: #555; }
-.debug-bar .bar { flex: 1; height: 6px; background: #111; position: relative; }
-.debug-bar .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; transition: width 0.05s; }
 
+/* ---- Settings panel ---- */
+#settings-panel { left: 12px; }
+
+.setting-row {
+  display: flex; align-items: center; margin: 0; padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-row label { color: rgba(255,255,255,0.35); min-width: 58px; font-size: 0.6rem; }
+.setting-row input[type=range] { flex: 1; margin: 0 8px; }
+.setting-row .val {
+  color: rgba(255,255,255,0.2); min-width: 24px; text-align: right;
+  font-size: 0.55rem; font-variant-numeric: tabular-nums;
+}
+
+/* Auto checkbox — custom styled */
+.auto-cb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 3px;
+  background: transparent; cursor: pointer; margin: 0 4px 0 0;
+  transition: all 0.15s; flex-shrink: 0; position: relative;
+}
+.auto-cb:hover { border-color: rgba(255,255,255,0.35); }
+.auto-cb:checked {
+  background: rgba(140,80,255,0.3); border-color: rgba(140,80,255,0.6);
+}
+.auto-cb:checked::after {
+  content: ''; position: absolute; top: 2px; left: 4px;
+  width: 4px; height: 7px; border: solid rgba(140,80,255,0.9);
+  border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
+}
+
+/* Slider thumb colors */
+#hue-all::-webkit-slider-thumb { background: #888; }
+#hue-stars::-webkit-slider-thumb { background: #8a5cf5; }
+#hue-hole::-webkit-slider-thumb { background: #4a9eed; }
+#sat-all::-webkit-slider-thumb { background: #aaa; }
+
+/* ---- Debug panel ---- */
+#debug-overlay { right: 12px; }
+.debug-bar { display: flex; align-items: center; margin: 0; padding: 3px 0; }
+.debug-bar .label { width: 55px; color: rgba(255,255,255,0.25); font-size: 0.55rem; }
+.debug-bar .bar {
+  flex: 1; height: 3px; background: rgba(255,255,255,0.04);
+  position: relative; border-radius: 2px; overflow: hidden;
+}
+.debug-bar .bar .fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 2px; transition: width 0.05s;
+}
+
+/* ---- Error ---- */
 #error-msg {
-  position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,0,0,0.2); border: 1px solid #f00; color: #f88;
-  padding: 8px 16px; font-size: 0.75rem; z-index: 200; display: none;
-  max-width: 80vw; word-break: break-all;
+  position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,30,30,0.12); border: 1px solid rgba(255,50,50,0.3); color: #f66;
+  padding: 8px 16px; font-size: 0.7rem; z-index: 200; display: none;
+  max-width: 80vw; border-radius: 6px;
 }
-
-#settings-toggle {
-  position: fixed; top: 8px; right: 160px; background: none; border: 1px solid #222;
-  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
-}
-#settings-toggle:hover { border-color: #666; color: #888; }
-
-#settings-panel {
-  position: fixed; top: 32px; left: 12px; width: 220px; background: rgba(0,0,0,0.85);
-  backdrop-filter: blur(8px); padding: 12px; z-index: 50; display: none;
-  font-size: 0.6rem; border: 1px solid #222; border-radius: 4px;
-}
-#settings-panel.visible { display: block; }
-#settings-panel h3 { color: #555; font-size: 0.65rem; margin: 0 0 8px; letter-spacing: 0.15em; }
-.setting-row { display: flex; align-items: center; margin: 5px 0; gap: 8px; }
-.setting-row label { color: #555; min-width: 65px; }
-.setting-row input[type=range] {
-  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
-  background: #222; outline: none; border-radius: 1px;
-}
-.setting-row input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; cursor: pointer;
-}
-#hue-all::-webkit-slider-thumb { background: linear-gradient(135deg, #f00, #0f0, #00f); }
-#hue-stars::-webkit-slider-thumb { background: #a0f; }
-#hue-hole::-webkit-slider-thumb { background: #0af; }
-#sat-all::-webkit-slider-thumb { background: #fff; }
-.setting-row .val { color: #444; min-width: 28px; text-align: right; }
-.auto-cb { width: 12px; height: 12px; accent-color: #a0f; cursor: pointer; margin: 0; }
 </style>
 </head>
 <body>
@@ -137,29 +165,30 @@ canvas { display: block; width: 100vw; height: 100vh; }
 </div>
 
 <span id="fps">0 FPS</span>
-<button id="fullscreen-btn">FULLSCREEN</button>
-<button id="debug-toggle">DEBUG</button>
-<button id="settings-toggle">COLORS</button>
+<button class="top-btn" id="settings-toggle" style="right:155px">Colors</button>
+<button class="top-btn" id="debug-toggle" style="right:105px">Debug</button>
+<button class="top-btn" id="fullscreen-btn" style="right:50px">Fullscreen</button>
 <div id="error-msg"></div>
 
-<div id="settings-panel">
-  <h3>COLOR SETTINGS</h3>
-  <div class="setting-row"><label>Global Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-all"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
-  <div class="setting-row"><label>Stars Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-stars"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
-  <div class="setting-row"><label>Hole Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-hole"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
-  <div class="setting-row"><label>Saturation</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
+<div class="panel" id="settings-panel">
+  <h3>Colors</h3>
+  <div class="setting-row"><label>Global</label><input type="checkbox" class="auto-cb" id="auto-hue-all" title="Auto"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
+  <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
+  <div class="setting-row"><label>Hole</label><input type="checkbox" class="auto-cb" id="auto-hue-hole" title="Auto"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
+  <div class="setting-row"><label>Saturate</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
 </div>
 
-<div id="debug-overlay">
-  <div class="debug-bar"><span class="label">Bass</span><div class="bar"><div class="fill" id="db-bass" style="background:#f40"></div></div></div>
-  <div class="debug-bar"><span class="label">Mid</span><div class="bar"><div class="fill" id="db-mid" style="background:#fa0"></div></div></div>
-  <div class="debug-bar"><span class="label">High</span><div class="bar"><div class="fill" id="db-high" style="background:#0af"></div></div></div>
-  <div class="debug-bar"><span class="label">RMS</span><div class="bar"><div class="fill" id="db-rms" style="background:#fff"></div></div></div>
-  <div class="debug-bar"><span class="label">Centroid</span><div class="bar"><div class="fill" id="db-centroid" style="background:#a0f"></div></div></div>
-  <div class="debug-bar"><span class="label">Kick</span><div class="bar"><div class="fill" id="db-kick" style="background:#f00"></div></div></div>
-  <div class="debug-bar"><span class="label">Flux</span><div class="bar"><div class="fill" id="db-flux" style="background:#0ff"></div></div></div>
-  <div class="debug-bar"><span class="label">ZCR</span><div class="bar"><div class="fill" id="db-zcr" style="background:#8f0"></div></div></div>
-  <div class="debug-bar"><span class="label">Energy</span><div class="bar"><div class="fill" id="db-energy" style="background:#f80"></div></div></div>
+<div class="panel" id="debug-overlay" style="right:12px">
+  <h3>Audio</h3>
+  <div class="debug-bar"><span class="label">Bass</span><div class="bar"><div class="fill" id="db-bass" style="background:rgba(255,68,0,0.7)"></div></div></div>
+  <div class="debug-bar"><span class="label">Mid</span><div class="bar"><div class="fill" id="db-mid" style="background:rgba(255,170,0,0.7)"></div></div></div>
+  <div class="debug-bar"><span class="label">High</span><div class="bar"><div class="fill" id="db-high" style="background:rgba(0,170,255,0.7)"></div></div></div>
+  <div class="debug-bar"><span class="label">RMS</span><div class="bar"><div class="fill" id="db-rms" style="background:rgba(255,255,255,0.5)"></div></div></div>
+  <div class="debug-bar"><span class="label">Centroid</span><div class="bar"><div class="fill" id="db-centroid" style="background:rgba(170,0,255,0.7)"></div></div></div>
+  <div class="debug-bar"><span class="label">Kick</span><div class="bar"><div class="fill" id="db-kick" style="background:rgba(255,0,0,0.7)"></div></div></div>
+  <div class="debug-bar"><span class="label">Flux</span><div class="bar"><div class="fill" id="db-flux" style="background:rgba(0,255,255,0.6)"></div></div></div>
+  <div class="debug-bar"><span class="label">ZCR</span><div class="bar"><div class="fill" id="db-zcr" style="background:rgba(136,255,0,0.6)"></div></div></div>
+  <div class="debug-bar"><span class="label">Energy</span><div class="bar"><div class="fill" id="db-energy" style="background:rgba(255,136,0,0.7)"></div></div></div>
 </div>
 
 <script>
