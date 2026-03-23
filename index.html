@@ -1387,6 +1387,10 @@ function getU(gl, prog, names) {
     // --- Tab Audio capture ---
     document.getElementById('tab-audio-btn').addEventListener('click', async () => {
         try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                showError('Tab audio requires HTTPS. Run: python3 server.py (creates local HTTPS server)');
+                return;
+            }
             // Request screen/tab share with audio
             const stream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,  // required by API, we won't use it
