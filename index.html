@@ -815,10 +815,23 @@ class AudioEngine {
         // Smoothed values (NOVA-style asymmetric: fast rise, slow fall)
         this.s = {
             bass: 0, mid: 0, high: 0, rms: 0,
-            centroid: 0, kick: 0, flux: 0, zcr: 0, energy: 0
+            centroid: 0, kick: 0, flux: 0, zcr: 0, energy: 0,
+            // New features
+            subBass: 0,    // sub-bass (20-80Hz) — the deepest rumble
+            snare: 0,      // snare/clap detection (mid transients)
+            hihat: 0,      // hihat/cymbal detection (high transients)
+            melodic: 0,    // harmonic complexity (how melodic vs percussive)
+            drop: 0,       // sustained energy buildup → release detection
+            pulse: 0,      // rhythmic pulse strength (how rhythmic is the music)
         };
         this.sBands = new Float32Array(10);
         this.prevRawBass = 0;
+        this.prevRawMid = 0;
+        this.prevRawHigh = 0;
+        this.energyHistory = new Float32Array(120); // ~2 seconds of energy history
+        this.energyHistIdx = 0;
+        this.beatTimes = [];     // timestamps of detected beats
+        this.prevEnergy = 0;
 
         // Exposed features
         this.features = { ...this.s };
@@ -980,6 +993,68 @@ class AudioEngine {
         // --- Energy (weighted aggregate, slow fall) ---
         const rawEnergy = this.s.bass * 0.4 + this.s.mid * 0.35 + this.s.high * 0.25;
         this.s.energy += (rawEnergy - this.s.energy) * (rawEnergy > this.s.energy ? 0.3 : 0.04);
+
+        // --- SUB-BASS: deepest frequencies only (band 0) ---
+        this.s.subBass = smooth(this.s.subBass, rawBands[0]);
+
+        // --- SNARE DETECTION: sudden mid-frequency transient ---
+        const midJump = Math.max(0, rawMid - this.prevRawMid);
+        if (midJump > 0.12) this.s.snare = Math.max(this.s.snare, midJump * 3.5);
+        this.s.snare *= 0.82;
+        this.prevRawMid = rawMid;
+
+        // --- HIHAT DETECTION: sudden high-frequency transient ---
+        const highJump = Math.max(0, rawHigh - this.prevRawHigh);
+        if (highJump > 0.08) this.s.hihat = Math.max(this.s.hihat, highJump * 3.0);
+        this.s.hihat *= 0.78;
+        this.prevRawHigh = rawHigh;
+
+        // --- MELODIC CONTENT: harmonic spread (how many bands are active vs just bass+highs) ---
+        let activeBands = 0;
+        for (let i = 0; i < 10; i++) { if (this.sBands[i] > 0.2) activeBands++; }
+        const rawMelodic = activeBands / 10.0;
+        this.s.melodic = smooth(this.s.melodic, rawMelodic);
+
+        // --- DROP DETECTION: energy was building, then suddenly releases ---
+        this.energyHistory[this.energyHistIdx % 120] = rawEnergy;
+        this.energyHistIdx++;
+        if (this.energyHistIdx > 60) {
+            // Compare recent energy to energy 1-2 seconds ago
+            const now = this.s.energy;
+            let pastSum = 0, pastCount = 0;
+            for (let i = 30; i < 90; i++) {
+                pastSum += this.energyHistory[(this.energyHistIdx - i + 120) % 120];
+                pastCount++;
+            }
+            const pastAvg = pastSum / pastCount;
+            // Drop = current energy much higher than past (the moment of the drop)
+            const dropRaw = Math.max(0, (now - pastAvg) * 3.0);
+            this.s.drop = smooth(this.s.drop, Math.min(dropRaw, 1.0));
+        }
+
+        // --- PULSE: how rhythmic is the music (regularity of beats) ---
+        // Track beat intervals and measure consistency
+        if (this.s.kick > 0.3 && this.prevEnergy < 0.3) {
+            const now = performance.now();
+            this.beatTimes.push(now);
+            if (this.beatTimes.length > 8) this.beatTimes.shift();
+        }
+        this.prevEnergy = this.s.kick;
+        if (this.beatTimes.length >= 4) {
+            const intervals = [];
+            for (let i = 1; i < this.beatTimes.length; i++) {
+                intervals.push(this.beatTimes[i] - this.beatTimes[i - 1]);
+            }
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            let variance = 0;
+            for (const iv of intervals) variance += (iv - avgInterval) * (iv - avgInterval);
+            variance /= intervals.length;
+            // Low variance = strong pulse, high variance = irregular
+            const regularity = Math.max(0, 1.0 - Math.sqrt(variance) / avgInterval);
+            this.s.pulse = smooth(this.s.pulse, regularity);
+        } else {
+            this.s.pulse *= 0.99;
+        }
 
         // Copy to features
         for (const k in this.s) this.features[k] = this.s[k];
@@ -1436,32 +1511,78 @@ function getU(gl, prog, names) {
         document.getElementById(id + '-val').textContent = Math.round(val);
     }
 
-    // Per-slider auto formulas
-    // Each slider driven by its most musically relevant feature
-    // Primary driver is strong (visible movement), secondary is subtle flavor
+    // Auto formulas — aggressive, musically intelligent
+    // Uses all extracted features: bass, mid, high, rms, kick, snare, hihat,
+    // subBass, flux, zcr, centroid, energy, melodic, drop, pulse
     const autoFormulas = {
-        // PHYSICS — driven by rhythm section
-        'tw-gravity':   f => 40 + f.bass * 160,                          // bass = gravity
-        'tw-orbit':     f => 30 + f.mid * 120 + f.energy * 50,           // melody/mids = orbit flow
-        'tw-bass-push': f => 20 + f.bass * 280,                          // pure bass response
-        'tw-kick':      f => 10 + f.kick * 290,                          // pure kick hits
+        // PHYSICS — the heartbeat of the black hole
+        'tw-gravity':   f => {
+            // Sub-bass IS gravity. Drops multiply it. Pulse adds rhythmic pumping.
+            return 50 + f.subBass * 200 + f.drop * 100 + f.pulse * f.bass * 50;
+        },
+        'tw-orbit':     f => {
+            // Melody drives flow. More melodic content = faster orbit. Energy lifts.
+            return 40 + f.mid * 100 + f.melodic * 80 + f.energy * 30;
+        },
+        'tw-bass-push': f => {
+            // Bass pushes, drops SLAM, kick adds punch
+            return 20 + f.bass * 200 + f.drop * 150 + f.kick * 50;
+        },
+        'tw-kick':      f => {
+            // Kick + snare combined — the full drum impact
+            return 5 + f.kick * 250 + f.snare * 100;
+        },
 
-        // STARS — driven by loudness and frequency content
-        'tw-size':      f => 50 + f.rms * 200 + f.kick * 50,            // loudness = size
-        'tw-react':     f => 40 + f.high * 200 + f.energy * 60,          // highs = sparkle reactivity
-        'tw-bloom':     f => 30 + f.mid * 150 + f.rms * 100,             // mids/melody = glow
-        'tw-bright':    f => 50 + f.energy * 150,                        // overall energy = brightness
+        // STARS — how alive the star field feels
+        'tw-size':      f => {
+            // Loudness swells stars. Drops make them huge. Sub-bass adds weight.
+            return 60 + f.rms * 120 + f.drop * 100 + f.subBass * 40;
+        },
+        'tw-react':     f => {
+            // Hihats + highs = sparkle. More melodic = more reactive.
+            return 50 + f.high * 130 + f.hihat * 120 + f.melodic * 50;
+        },
+        'tw-bloom':     f => {
+            // Melody = bloom. Musical sections glow, percussion sections sharpen.
+            return 40 + f.melodic * 130 + f.mid * 80 + f.rms * 50;
+        },
+        'tw-bright':    f => {
+            // Energy = brightness. Drops are blinding. Centroid adds color temp.
+            return 50 + f.energy * 100 + f.drop * 80 + f.centroid * 30;
+        },
 
-        // SPACETIME — driven by texture and transients
-        'tw-twist':     f => 10 + f.bass * 300 + f.kick * 90,            // bass twists spacetime
-        'tw-chroma':    f => 20 + f.kick * 250 + f.flux * 100,           // transients = chromatic split
-        'tw-lens':      f => 30 + f.bass * 200 + f.energy * 70,          // bass bends light
-        'tw-waves':     f => 5  + f.kick * 350 + f.flux * 50,            // kicks = shockwaves
+        // SPACETIME — the fabric of reality bending to the music
+        'tw-twist':     f => {
+            // Sub-bass warps spacetime. The deeper the frequency, the more twist.
+            // Pulse makes it rhythmic — twist pumps on beat.
+            return 15 + f.subBass * 200 + f.bass * 100 + f.pulse * f.kick * 80;
+        },
+        'tw-chroma':    f => {
+            // Every transient fractures light — kick, snare, hihat all split RGB
+            return 15 + f.kick * 150 + f.snare * 120 + f.hihat * 80 + f.flux * 60;
+        },
+        'tw-lens':      f => {
+            // Bass bends light. Drops warp everything. Energy sustains distortion.
+            return 30 + f.bass * 150 + f.drop * 120 + f.energy * 50;
+        },
+        'tw-waves':     f => {
+            // Every drum hit sends a shockwave. More rhythmic = more waves.
+            return 5 + f.kick * 200 + f.snare * 150 + f.pulse * 80;
+        },
 
-        // BLACK HOLE — driven by overall intensity
-        'tw-void':      f => 60 + f.energy * 100 + f.bass * 80,          // energy grows the void
-        'tw-ring':      f => 30 + f.rms * 200 + f.kick * 70,             // loudness = ring glow
-        'tw-corona':    f => 10 + f.kick * 200 + f.energy * 90,          // kicks + energy = corona burst
+        // BLACK HOLE — the center reacts to total musical power
+        'tw-void':      f => {
+            // The void breathes with energy. Drops make it swallow everything.
+            return 70 + f.energy * 80 + f.drop * 80 + f.bass * 40;
+        },
+        'tw-ring':      f => {
+            // The ring pulses on every beat, glows with loudness
+            return 40 + f.rms * 130 + f.kick * 80 + f.snare * 50;
+        },
+        'tw-corona':    f => {
+            // Corona explodes on drops and kicks. Melodic sections = sustained glow.
+            return 15 + f.kick * 150 + f.drop * 130 + f.energy * 60 + f.melodic * 30;
+        },
     };
 
     function updateAutoTweaks() {
