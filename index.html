@@ -359,9 +359,10 @@ void main() {
     vec3 shimmerCol = vec3(0.4, 0.85, 1.0);
     col = mix(col, shimmerCol, shimmer * 0.4);
 
-    // Near center: hotter plasma core
+    // Near center: hotter plasma core — dims slightly at high energy to avoid blowout
     vec3 coreGlow = vec3(0.6, 0.15, 0.8);
-    col = mix(col, col * 1.8 + coreGlow * 0.3, nearCenter * 0.6);
+    float coreFade = 0.6 - u_energy * 0.2; // 0.6 at rest, 0.4 at full energy
+    col = mix(col, col * 1.8 + coreGlow * 0.3, nearCenter * coreFade);
 
     // Kick: momentary flash — cycles through plasma colors per star
     vec3 kickCol = mix(vec3(1.0, 0.3, 0.6), vec3(0.3, 0.8, 1.0), h4);
@@ -503,78 +504,106 @@ void main() {
     bloom *= mix(vec3(1.0), spectralColor(u_centroid), 0.6);
     col += bloom * bloomStr;
 
-    // Zoom scale: all black hole features scale inversely with camera distance
-    // At default dist (3.0), zoomScale = 1.0. Closer = bigger, further = smaller.
     float zoomScale = 3.0 / max(u_camDist, 0.5);
-
-    // === ENERGY INTENSITY ===
     float energy = u_energy;
-    float dropHeat = u_kick * 0.5 + u_bass * 0.3 + energy * 0.2;
-    dropHeat = min(dropHeat, 1.0);
-
-    // === HORIZON COLOR: space palette temperature gradient ===
-    // Calm: deep violet/blue → building: magenta/purple → peak: cyan/white-hot
-    vec3 coldCol  = vec3(0.15, 0.05, 0.4);        // deep space violet
-    vec3 warmCol  = vec3(0.6, 0.1, 0.6);          // nebula purple
-    vec3 hotCol   = vec3(0.9, 0.15, 0.7);         // hot magenta
-    vec3 burnCol  = vec3(0.3, 0.5, 1.0);          // electric blue
-    vec3 peakCol  = vec3(0.7, 0.9, 1.0);          // white-cyan peak
-
-    vec3 holeColor;
-    if (dropHeat < 0.2) {
-        holeColor = mix(coldCol, warmCol, dropHeat * 5.0);
-    } else if (dropHeat < 0.4) {
-        holeColor = mix(warmCol, hotCol, (dropHeat - 0.2) * 5.0);
-    } else if (dropHeat < 0.65) {
-        holeColor = mix(hotCol, burnCol, (dropHeat - 0.4) * 4.0);
-    } else {
-        holeColor = mix(burnCol, peakCol, (dropHeat - 0.65) * 2.86);
-    }
-
-    // === SPACETIME DISTORTION: only on energy peaks ===
+    float dropHeat = min(u_kick * 0.5 + u_bass * 0.3 + energy * 0.2, 1.0);
+    float peakIntensity = min(smoothstep(0.4, 0.85, energy) + u_kick * 0.8, 1.0);
     float angle = atan(toCenter.y, toCenter.x);
 
-    // Distortion threshold: nothing happens below 0.5 energy, ramps up above
-    float peakIntensity = smoothstep(0.4, 0.85, energy) + u_kick * 0.8;
-    peakIntensity = min(peakIntensity, 1.0);
+    // === ACCRETION DISK: Chromatic rings (Gargantua-style) ===
+    // Disk lives in a tilted plane — squash Y to create perspective
+    float tilt = 0.35 + u_bass * 0.05; // slight tilt, bass wobbles it
+    vec2 diskUV = vec2(toCenter.x, toCenter.y / tilt);
+    float diskDist = length(diskUV);
 
-    // When energy peaks, spacetime tears — asymmetric, violent distortion
+    // Multiple chromatic rings at different radii
+    float diskBase = 0.04 * zoomScale;
+    float diskWidth = 0.12 * zoomScale;
+    float diskT = (diskDist - diskBase) / diskWidth; // 0-1 across disk
+
+    // Only render disk in the ring zone
+    if (diskT > -0.1 && diskT < 1.2) {
+        float diskFade = smoothstep(-0.1, 0.05, diskT) * smoothstep(1.2, 0.9, diskT);
+
+        // Chromatic bands — each band is a different color
+        // Fine rings with slight gaps between them
+        float ringPhase = diskT * 28.0 + u_time * 0.3; // many thin rings
+        float ringPattern = 0.5 + 0.5 * sin(ringPhase);
+        ringPattern *= 0.6 + 0.4 * sin(ringPhase * 0.7 + 1.0); // modulated density
+
+        // Rainbow/prismatic color based on position in disk
+        float hue = fract(diskT * 1.5 + u_centroid * 0.3 + u_time * 0.02);
+        vec3 ringCol;
+        if (hue < 0.16)      ringCol = mix(vec3(0.9, 0.15, 0.1),  vec3(0.95, 0.5, 0.05), hue * 6.0);        // red → orange
+        else if (hue < 0.33) ringCol = mix(vec3(0.95, 0.5, 0.05), vec3(0.95, 0.9, 0.15), (hue-0.16)*6.0);   // orange → yellow
+        else if (hue < 0.5)  ringCol = mix(vec3(0.95, 0.9, 0.15), vec3(0.1, 0.85, 0.3),  (hue-0.33)*6.0);   // yellow → green
+        else if (hue < 0.66) ringCol = mix(vec3(0.1, 0.85, 0.3),  vec3(0.1, 0.4, 1.0),   (hue-0.5)*6.0);    // green → blue
+        else if (hue < 0.83) ringCol = mix(vec3(0.1, 0.4, 1.0),   vec3(0.6, 0.1, 0.9),   (hue-0.66)*6.0);   // blue → violet
+        else                 ringCol = mix(vec3(0.6, 0.1, 0.9),   vec3(0.9, 0.15, 0.1),  (hue-0.83)*6.0);   // violet → red
+
+        // Brightness: inner rings brighter, energy pumps it
+        float diskBright = (1.0 - diskT * 0.6) * (0.6 + energy * 0.8 + u_kick * 0.5);
+        diskBright *= ringPattern * diskFade;
+
+        col += ringCol * diskBright * 0.7;
+    }
+
+    // === EINSTEIN RING: Lensed light arcing over the top of the void ===
+    // Simulates the gravitational lensing of the backside disk
+    float einsteinR = (0.045 + energy * 0.015 + u_kick * 0.01) * zoomScale;
+    float einsteinWidth = 0.012 * zoomScale;
+
+    // The arc appears above the void — offset slightly upward
+    vec2 arcCenter = center + vec2(0.0, -0.005 * zoomScale);
+    float arcDist = length(uv - arcCenter);
+    float arcRing = exp(-pow(arcDist - einsteinR, 2.0) / (einsteinWidth * einsteinWidth * 2.0));
+
+    // Chromatic aberration on the Einstein ring — split RGB
+    float arcR = exp(-pow(length(uv - arcCenter) - einsteinR * 0.97, 2.0) / (einsteinWidth * einsteinWidth * 2.0));
+    float arcG = arcRing;
+    float arcB = exp(-pow(length(uv - arcCenter) - einsteinR * 1.03, 2.0) / (einsteinWidth * einsteinWidth * 2.0));
+
+    float arcBright = 0.5 + energy * 1.5 + u_kick * 1.0;
+    col += vec3(arcR * 0.9, arcG * 0.8, arcB * 1.0) * arcBright * 0.4;
+
+    // === SPACETIME DISTORTION: energy peaks warp the shape ===
     float warp1 = sin(angle * 2.0 + u_time * 0.7 + u_bass * 6.0) * 0.4;
     float warp2 = sin(angle * 3.0 - u_time * 1.3 + energy * 5.0) * 0.3;
     float warp3 = sin(angle * 5.0 + u_time * 2.5) * 0.15;
-    // Bass-driven asymmetric bulge
     float warp4 = sin(angle * 1.0 + u_time * 0.3) * u_bass * 0.6;
     float shapeWarp = (warp1 + warp2 + warp3 + warp4) * peakIntensity;
-
     float warpedDist = dist + shapeWarp * 0.02 * zoomScale;
 
-    // === EVENT HORIZON: swells and distorts on peaks ===
-    float ringR = (0.03 + u_rms * 0.012 + energy * 0.025 + u_kick * 0.035) * zoomScale;
-    float ringDist = abs(warpedDist - ringR);
-    float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
-    float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
-    col += holeColor * 2.5 * ring;
+    // === EVENT HORIZON GLOW ===
+    vec3 horizonCol = mix(vec3(0.3, 0.1, 0.6), vec3(0.5, 0.8, 1.0), dropHeat);
+    float ringR = (0.04 + u_rms * 0.01 + energy * 0.02 + u_kick * 0.025) * zoomScale;
+    float ringDist2 = abs(warpedDist - ringR);
+    float ringWidth2 = (8000.0 - peakIntensity * 4000.0) / (zoomScale * zoomScale);
+    float ring = exp(-ringDist2 * ringDist2 * ringWidth2) * (0.4 + energy * 1.5 + u_kick * 1.2);
+    col += horizonCol * 1.5 * ring;
 
-    // === SECONDARY RING: outer halo ===
-    float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
-    float outerDist2 = abs(warpedDist - outerR);
-    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
-    vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
-    col += outerCol * 0.6 * outerRing;
+    // === PHOTON SPHERE: thin bright ring right at the edge ===
+    float photonR = ringR * 0.85;
+    float photonDist = abs(warpedDist - photonR);
+    float photon = exp(-photonDist * photonDist * 80000.0 / (zoomScale * zoomScale)) * (0.3 + energy * 0.8);
+    // Chromatic split on photon sphere
+    col.r += photon * 0.9;
+    col.g += photon * 0.6;
+    col.b += photon * 1.1;
 
-    // === ENERGY CORONA: when it really goes hard, light floods outward ===
-    float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
-    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8;
-    vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
+    // === CORONA: energy-driven glow ===
+    float coronaR = (0.08 + energy * 0.04 + u_kick * 0.03) * zoomScale;
+    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.5;
+    vec3 coronaCol = mix(vec3(0.2, 0.05, 0.4), vec3(0.4, 0.7, 1.0), peakIntensity);
     col += coronaCol * corona;
 
-    // === BLACK HOLE VOID: grows with energy ===
-    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale;
-    float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
+    // === BLACK HOLE VOID ===
+    float voidR = (0.025 + energy * 0.012 + u_kick * 0.015) * zoomScale;
+    float voidSoft = (0.008 + peakIntensity * 0.005) * zoomScale;
     col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
 
-    // Kick flash — tinted purple instead of white
-    col += vec3(0.3, 0.15, 0.5) * u_kick * 0.15;
+    // Kick flash — subtle
+    col += vec3(0.2, 0.1, 0.35) * u_kick * 0.1;
 
     // Vignette
     col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
