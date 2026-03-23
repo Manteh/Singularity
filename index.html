@@ -143,6 +143,10 @@ canvas { display: block; width: 100vw; height: 100vh; }
 
 <div id="settings-panel">
   <h3>COLOR SETTINGS</h3>
+  <div class="setting-row">
+    <label>Auto Color</label>
+    <button id="auto-color-btn" style="flex:1;background:none;border:1px solid #333;color:#555;cursor:pointer;padding:3px 8px;font-family:inherit;font-size:0.6rem;letter-spacing:0.1em;transition:all 0.2s">OFF</button>
+  </div>
   <div class="setting-row"><label>Global Hue</label><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
   <div class="setting-row"><label>Stars Hue</label><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
   <div class="setting-row"><label>Hole Hue</label><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
@@ -1152,11 +1156,13 @@ function getU(gl, prog, names) {
     const settingsPanel = document.getElementById('settings-panel');
     document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
 
-    const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0 };
+    const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0, autoColor: false };
 
+    const hueSliders = {};
     function setupSlider(id, key, toValue) {
         const slider = document.getElementById(id);
         const valEl = document.getElementById(id + '-val');
+        hueSliders[key] = { slider, valEl };
         slider.addEventListener('input', () => {
             colorSettings[key] = toValue(parseFloat(slider.value));
             valEl.textContent = slider.value;
@@ -1167,6 +1173,48 @@ function getU(gl, prog, names) {
     setupSlider('hue-stars', 'hueStars', deg2rad);
     setupSlider('hue-hole', 'hueHole', deg2rad);
     setupSlider('sat-all', 'satMul', v => v / 100.0);
+
+    // Auto-color toggle
+    const autoBtn = document.getElementById('auto-color-btn');
+    autoBtn.addEventListener('click', () => {
+        colorSettings.autoColor = !colorSettings.autoColor;
+        autoBtn.textContent = colorSettings.autoColor ? 'ON' : 'OFF';
+        autoBtn.style.borderColor = colorSettings.autoColor ? '#a0f' : '#333';
+        autoBtn.style.color = colorSettings.autoColor ? '#a0f' : '#555';
+        // Disable/enable hue sliders
+        ['hue-all','hue-stars','hue-hole'].forEach(id => {
+            document.getElementById(id).disabled = colorSettings.autoColor;
+            document.getElementById(id).style.opacity = colorSettings.autoColor ? '0.3' : '1';
+        });
+    });
+
+    // Auto-color update: driven by audio features each frame
+    function updateAutoColor() {
+        if (!colorSettings.autoColor) return;
+        const f = audio.features;
+
+        // Global hue: slow drift based on spectral centroid + time
+        // Centroid determines the base hue region, time adds slow drift
+        const globalHue = (f.centroid * 360 + time * 8) % 360;
+
+        // Stars hue: offset by energy — high energy shifts hue forward
+        const starsHue = (f.energy * 120 + f.bass * 60) % 360;
+
+        // Hole hue: driven by bass and kicks — snaps to different hues on hits
+        const holeHue = (f.bass * 180 + f.kick * 90 + time * 5) % 360;
+
+        colorSettings.hueAll = globalHue * Math.PI / 180;
+        colorSettings.hueStars = starsHue * Math.PI / 180;
+        colorSettings.hueHole = holeHue * Math.PI / 180;
+
+        // Update slider positions to reflect auto values
+        hueSliders.hueAll.slider.value = Math.round(globalHue);
+        hueSliders.hueAll.valEl.textContent = Math.round(globalHue);
+        hueSliders.hueStars.slider.value = Math.round(starsHue);
+        hueSliders.hueStars.valEl.textContent = Math.round(starsHue);
+        hueSliders.hueHole.slider.value = Math.round(holeHue);
+        hueSliders.hueHole.valEl.textContent = Math.round(holeHue);
+    }
 
     function fmt(s) { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60), sc = Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
 
@@ -1348,6 +1396,7 @@ function getU(gl, prog, names) {
         if (fpsTime >= 1) { fpsEl.textContent = Math.round(frameCount/fpsTime)+' FPS'; frameCount = 0; fpsTime = 0; }
 
         audio.update(dt);
+        updateAutoColor();
 
         if (audioEl?.duration) {
             seekBar.value = (audioEl.currentTime / audioEl.duration) * 1000;
