@@ -1421,22 +1421,31 @@ function getU(gl, prog, names) {
     }
 
     // Per-slider auto formulas
+    // Each slider driven by its most musically relevant feature
+    // Primary driver is strong (visible movement), secondary is subtle flavor
     const autoFormulas = {
-        'tw-gravity': f => 60 + f.energy * 140 + f.bass * 50,
-        'tw-orbit': f => 50 + f.energy * 100 + f.mid * 50,
-        'tw-bass-push': f => 50 + f.bass * 200 + f.kick * 50,
-        'tw-kick': f => 50 + f.kick * 200 + f.bass * 50,
-        'tw-size': f => 70 + f.rms * 100 + f.kick * 60,
-        'tw-react': f => 60 + f.energy * 180 + f.high * 60,
-        'tw-bloom': f => 50 + f.rms * 120 + f.high * 80,
-        'tw-bright': f => 60 + f.rms * 100 + f.energy * 80,
-        'tw-twist': f => 30 + f.bass * 250 + f.energy * 80,
-        'tw-chroma': f => 40 + f.energy * 200 + f.kick * 120,
-        'tw-lens': f => 50 + f.flux * 200 + f.bass * 100,
-        'tw-waves': f => 30 + f.kick * 250 + f.flux * 120,
-        'tw-void': f => 70 + f.energy * 130 + f.kick * 50,
-        'tw-ring': f => 50 + f.rms * 150 + f.kick * 80,
-        'tw-corona': f => 30 + f.energy * 150 + f.kick * 100,
+        // PHYSICS — driven by rhythm section
+        'tw-gravity':   f => 40 + f.bass * 160,                          // bass = gravity
+        'tw-orbit':     f => 30 + f.mid * 120 + f.energy * 50,           // melody/mids = orbit flow
+        'tw-bass-push': f => 20 + f.bass * 280,                          // pure bass response
+        'tw-kick':      f => 10 + f.kick * 290,                          // pure kick hits
+
+        // STARS — driven by loudness and frequency content
+        'tw-size':      f => 50 + f.rms * 200 + f.kick * 50,            // loudness = size
+        'tw-react':     f => 40 + f.high * 200 + f.energy * 60,          // highs = sparkle reactivity
+        'tw-bloom':     f => 30 + f.mid * 150 + f.rms * 100,             // mids/melody = glow
+        'tw-bright':    f => 50 + f.energy * 150,                        // overall energy = brightness
+
+        // SPACETIME — driven by texture and transients
+        'tw-twist':     f => 10 + f.bass * 300 + f.kick * 90,            // bass twists spacetime
+        'tw-chroma':    f => 20 + f.kick * 250 + f.flux * 100,           // transients = chromatic split
+        'tw-lens':      f => 30 + f.bass * 200 + f.energy * 70,          // bass bends light
+        'tw-waves':     f => 5  + f.kick * 350 + f.flux * 50,            // kicks = shockwaves
+
+        // BLACK HOLE — driven by overall intensity
+        'tw-void':      f => 60 + f.energy * 100 + f.bass * 80,          // energy grows the void
+        'tw-ring':      f => 30 + f.rms * 200 + f.kick * 70,             // loudness = ring glow
+        'tw-corona':    f => 10 + f.kick * 200 + f.energy * 90,          // kicks + energy = corona burst
     };
 
     function updateAutoTweaks() {
