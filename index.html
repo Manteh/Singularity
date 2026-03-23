@@ -113,6 +113,7 @@ canvas { display: block; width: 100vw; height: 100vh; }
 #hue-hole::-webkit-slider-thumb { background: #0af; }
 #sat-all::-webkit-slider-thumb { background: #fff; }
 .setting-row .val { color: #444; min-width: 28px; text-align: right; }
+.auto-cb { width: 12px; height: 12px; accent-color: #a0f; cursor: pointer; margin: 0; }
 </style>
 </head>
 <body>
@@ -143,14 +144,10 @@ canvas { display: block; width: 100vw; height: 100vh; }
 
 <div id="settings-panel">
   <h3>COLOR SETTINGS</h3>
-  <div class="setting-row">
-    <label>Auto Color</label>
-    <button id="auto-color-btn" style="flex:1;background:none;border:1px solid #333;color:#555;cursor:pointer;padding:3px 8px;font-family:inherit;font-size:0.6rem;letter-spacing:0.1em;transition:all 0.2s">OFF</button>
-  </div>
-  <div class="setting-row"><label>Global Hue</label><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
-  <div class="setting-row"><label>Stars Hue</label><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
-  <div class="setting-row"><label>Hole Hue</label><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
-  <div class="setting-row"><label>Saturation</label><input type="range" id="sat-all" min="0" max="200" value="100"><span class="val" id="sat-all-val">100</span></div>
+  <div class="setting-row"><label>Global Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-all"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
+  <div class="setting-row"><label>Stars Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-stars"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
+  <div class="setting-row"><label>Hole Hue</label><input type="checkbox" class="auto-cb" id="auto-hue-hole"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
+  <div class="setting-row"><label>Saturation</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
 </div>
 
 <div id="debug-overlay">
@@ -1191,64 +1188,53 @@ function getU(gl, prog, names) {
     const settingsPanel = document.getElementById('settings-panel');
     document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
 
-    const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0, autoColor: false };
+    const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0 };
 
     const hueSliders = {};
-    function setupSlider(id, key, toValue) {
+    function setupSlider(id, key, toValue, checkboxId) {
         const slider = document.getElementById(id);
         const valEl = document.getElementById(id + '-val');
-        hueSliders[key] = { slider, valEl };
+        const cb = checkboxId ? document.getElementById(checkboxId) : null;
+        hueSliders[key] = { slider, valEl, cb };
         slider.addEventListener('input', () => {
             colorSettings[key] = toValue(parseFloat(slider.value));
             valEl.textContent = slider.value;
         });
+        if (cb) {
+            cb.addEventListener('change', () => {
+                slider.disabled = cb.checked;
+                slider.style.opacity = cb.checked ? '0.3' : '1';
+            });
+        }
     }
     const deg2rad = v => v * Math.PI / 180.0;
-    setupSlider('hue-all', 'hueAll', deg2rad);
-    setupSlider('hue-stars', 'hueStars', deg2rad);
-    setupSlider('hue-hole', 'hueHole', deg2rad);
+    setupSlider('hue-all', 'hueAll', deg2rad, 'auto-hue-all');
+    setupSlider('hue-stars', 'hueStars', deg2rad, 'auto-hue-stars');
+    setupSlider('hue-hole', 'hueHole', deg2rad, 'auto-hue-hole');
     setupSlider('sat-all', 'satMul', v => v / 100.0);
 
-    // Auto-color toggle
-    const autoBtn = document.getElementById('auto-color-btn');
-    autoBtn.addEventListener('click', () => {
-        colorSettings.autoColor = !colorSettings.autoColor;
-        autoBtn.textContent = colorSettings.autoColor ? 'ON' : 'OFF';
-        autoBtn.style.borderColor = colorSettings.autoColor ? '#a0f' : '#333';
-        autoBtn.style.color = colorSettings.autoColor ? '#a0f' : '#555';
-        // Disable/enable hue sliders
-        ['hue-all','hue-stars','hue-hole'].forEach(id => {
-            document.getElementById(id).disabled = colorSettings.autoColor;
-            document.getElementById(id).style.opacity = colorSettings.autoColor ? '0.3' : '1';
-        });
-    });
-
-    // Auto-color update: driven by audio features each frame
+    // Auto-color update: each checked slider is driven by music
     function updateAutoColor() {
-        if (!colorSettings.autoColor) return;
         const f = audio.features;
 
-        // Global hue: slow drift based on spectral centroid + time
-        // Centroid determines the base hue region, time adds slow drift
-        const globalHue = (f.centroid * 360 + time * 8) % 360;
-
-        // Stars hue: offset by energy — high energy shifts hue forward
-        const starsHue = (f.energy * 120 + f.bass * 60) % 360;
-
-        // Hole hue: driven by bass and kicks — snaps to different hues on hits
-        const holeHue = (f.bass * 180 + f.kick * 90 + time * 5) % 360;
-
-        colorSettings.hueAll = globalHue * Math.PI / 180;
-        colorSettings.hueStars = starsHue * Math.PI / 180;
-        colorSettings.hueHole = holeHue * Math.PI / 180;
-
-        // Update slider positions to reflect auto values
-        hueSliders.hueAll.slider.value = Math.round(globalHue);
-        hueSliders.hueAll.valEl.textContent = Math.round(globalHue);
-        hueSliders.hueStars.slider.value = Math.round(starsHue);
-        hueSliders.hueStars.valEl.textContent = Math.round(starsHue);
-        hueSliders.hueHole.slider.value = Math.round(holeHue);
-        hueSliders.hueHole.valEl.textContent = Math.round(holeHue);
+        if (hueSliders.hueAll.cb.checked) {
+            const v = (f.centroid * 360 + time * 8) % 360;
+            colorSettings.hueAll = v * Math.PI / 180;
+            hueSliders.hueAll.slider.value = Math.round(v);
+            hueSliders.hueAll.valEl.textContent = Math.round(v);
+        }
+        if (hueSliders.hueStars.cb.checked) {
+            const v = (f.energy * 120 + f.bass * 60) % 360;
+            colorSettings.hueStars = v * Math.PI / 180;
+            hueSliders.hueStars.slider.value = Math.round(v);
+            hueSliders.hueStars.valEl.textContent = Math.round(v);
+        }
+        if (hueSliders.hueHole.cb.checked) {
+            const v = (f.bass * 180 + f.kick * 90 + time * 5) % 360;
+            colorSettings.hueHole = v * Math.PI / 180;
+            hueSliders.hueHole.slider.value = Math.round(v);
+            hueSliders.hueHole.valEl.textContent = Math.round(v);
+        }
     }
 
     function fmt(s) { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60), sc = Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
