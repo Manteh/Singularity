@@ -26,6 +26,7 @@ canvas { display: block; width: 100vw; height: 100vh; }
   color: #666; transition: all 0.3s; letter-spacing: 0.2em;
 }
 #drop-zone label:hover { border-color: #f80; color: #f80; }
+#demo-btn:hover { border-color: #a0f !important; color: #a0f !important; }
 
 #controls {
   position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
@@ -93,7 +94,10 @@ canvas { display: block; width: 100vw; height: 100vh; }
 <div id="drop-zone">
   <h1>Singularity</h1>
   <p>Drop an audio file or click to load</p>
-  <label for="file-input">LOAD AUDIO</label>
+  <div style="display:flex;gap:16px">
+    <label for="file-input">LOAD AUDIO</label>
+    <button id="demo-btn" style="padding:12px 32px;border:1px solid #333;cursor:pointer;font-size:0.85rem;color:#666;background:none;font-family:inherit;letter-spacing:0.2em;transition:all 0.3s">DEMO SONG</button>
+  </div>
   <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.m4a,.aac,.flac,.webm,.opus,audio/*">
 </div>
 
@@ -588,13 +592,17 @@ class AudioEngine {
         this.bands = new Float32Array(10);
     }
 
-    async loadFile(file) {
+    async loadFile(fileOrUrl) {
         if (this.source) { try { this.source.disconnect(); } catch(e) {} }
         if (this.audio) { this.audio.pause(); }
 
         this.audio = new Audio();
         this.audio.preload = 'auto';
-        this.audio.src = URL.createObjectURL(file);
+        if (typeof fileOrUrl === 'string') {
+            this.audio.src = fileOrUrl;
+        } else {
+            this.audio.src = URL.createObjectURL(fileOrUrl);
+        }
 
         if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         if (this.ctx.state === 'suspended') await this.ctx.resume();
@@ -1020,10 +1028,11 @@ function getU(gl, prog, names) {
 
     let audioEl = null, isPlaying = false;
 
-    async function loadAudioFile(file) {
-        if (!file) return;
-        console.log('[SINGULARITY] Loading:', file.name, file.type, file.size);
-        try { audioEl = await audio.loadFile(file); }
+    async function loadAudioFile(fileOrUrl) {
+        if (!fileOrUrl) return;
+        const isUrl = typeof fileOrUrl === 'string';
+        console.log('[SINGULARITY] Loading:', isUrl ? fileOrUrl : fileOrUrl.name);
+        try { audioEl = await audio.loadFile(fileOrUrl); }
         catch (e) { showError('Audio: ' + e.message); return; }
 
         dropZone.classList.add('hidden');
@@ -1035,6 +1044,7 @@ function getU(gl, prog, names) {
     }
 
     fileInput.addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
+    document.getElementById('demo-btn').addEventListener('click', () => loadAudioFile('demo.mp3'));
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) loadAudioFile(e.dataTransfer.files[0]); });
