@@ -85,6 +85,34 @@ canvas { display: block; width: 100vw; height: 100vh; }
   padding: 8px 16px; font-size: 0.75rem; z-index: 200; display: none;
   max-width: 80vw; word-break: break-all;
 }
+
+#settings-toggle {
+  position: fixed; top: 8px; right: 160px; background: none; border: 1px solid #222;
+  color: #333; font-size: 0.6rem; padding: 2px 6px; cursor: pointer; z-index: 50;
+}
+#settings-toggle:hover { border-color: #666; color: #888; }
+
+#settings-panel {
+  position: fixed; top: 32px; left: 12px; width: 220px; background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px); padding: 12px; z-index: 50; display: none;
+  font-size: 0.6rem; border: 1px solid #222; border-radius: 4px;
+}
+#settings-panel.visible { display: block; }
+#settings-panel h3 { color: #555; font-size: 0.65rem; margin: 0 0 8px; letter-spacing: 0.15em; }
+.setting-row { display: flex; align-items: center; margin: 5px 0; gap: 8px; }
+.setting-row label { color: #555; min-width: 65px; }
+.setting-row input[type=range] {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: #222; outline: none; border-radius: 1px;
+}
+.setting-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; cursor: pointer;
+}
+#hue-all::-webkit-slider-thumb { background: linear-gradient(135deg, #f00, #0f0, #00f); }
+#hue-stars::-webkit-slider-thumb { background: #a0f; }
+#hue-hole::-webkit-slider-thumb { background: #0af; }
+#sat-all::-webkit-slider-thumb { background: #fff; }
+.setting-row .val { color: #444; min-width: 28px; text-align: right; }
 </style>
 </head>
 <body>
@@ -110,7 +138,16 @@ canvas { display: block; width: 100vw; height: 100vh; }
 <span id="fps">0 FPS</span>
 <button id="fullscreen-btn">FULLSCREEN</button>
 <button id="debug-toggle">DEBUG</button>
+<button id="settings-toggle">COLORS</button>
 <div id="error-msg"></div>
+
+<div id="settings-panel">
+  <h3>COLOR SETTINGS</h3>
+  <div class="setting-row"><label>Global Hue</label><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
+  <div class="setting-row"><label>Stars Hue</label><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
+  <div class="setting-row"><label>Hole Hue</label><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
+  <div class="setting-row"><label>Saturation</label><input type="range" id="sat-all" min="0" max="200" value="100"><span class="val" id="sat-all-val">100</span></div>
+</div>
 
 <div id="debug-overlay">
   <div class="debug-bar"><span class="label">Bass</span><div class="bar"><div class="fill" id="db-bass" style="background:#f40"></div></div></div>
@@ -165,14 +202,35 @@ uniform vec2 u_resolution;
 uniform vec4 u_bands03, u_bands47;
 uniform vec2 u_bands89;
 uniform mat4 u_viewProj;   // combined view * projection matrix
-uniform vec3 u_camRight;   // camera right vector for billboarding
-uniform vec3 u_camUp;      // camera up vector for billboarding
+uniform vec3 u_camRight;
+uniform vec3 u_camUp;
+uniform float u_hueStars;  // star hue shift in radians
+uniform float u_satMul;    // saturation multiplier
 
 out vec4 v_color;
 out vec2 v_uv;
 out float v_coreSharp;
 
 float hash(float n) { return fract(sin(n) * 43758.5453); }
+
+// Hue-rotate a color by angle (radians) — Rodrigues rotation around (1,1,1)
+vec3 hueShift(vec3 c, float angle) {
+    float cosA = cos(angle), sinA = sin(angle);
+    float omc = 1.0 - cosA;
+    float k = 1.0/3.0;
+    float srt = sqrt(k);
+    vec3 r;
+    r.x = c.x*(cosA+omc*k) + c.y*(k*omc-srt*sinA) + c.z*(k*omc+srt*sinA);
+    r.y = c.x*(k*omc+srt*sinA) + c.y*(cosA+omc*k) + c.z*(k*omc-srt*sinA);
+    r.z = c.x*(k*omc-srt*sinA) + c.y*(k*omc+srt*sinA) + c.z*(cosA+omc*k);
+    return r;
+}
+
+// Adjust saturation: 0=grayscale, 1=original, 2=oversaturated
+vec3 satAdjust(vec3 c, float sat) {
+    float lum = dot(c, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(lum), c, sat);
+}
 
 vec3 spectralColor(float c) {
     // Space palette: deep violet → magenta → electric blue → cyan → white
@@ -371,6 +429,10 @@ void main() {
     // Low energy = softer, dreamier
     v_coreSharp = 1.5 + a_bright * 3.0 + u_energy * 2.0 + nearCenter * 2.0;
 
+    // Apply hue shift and saturation
+    col = hueShift(col, u_hueStars);
+    col = satAdjust(col, u_satMul);
+
     v_color = vec4(col, min(alpha, 1.0));
 }
 `;
@@ -427,8 +489,28 @@ uniform float u_bass;
 uniform float u_high;
 uniform float u_energy;
 uniform float u_time;
-uniform float u_camDist;  // camera distance for zoom-aware sizing
+uniform float u_camDist;
+uniform float u_hueHole;   // black hole hue shift in radians
+uniform float u_hueAll;    // global hue shift
+uniform float u_satMul;    // saturation multiplier
 uniform vec2 u_resolution;
+
+vec3 hueShift(vec3 c, float angle) {
+    float cosA = cos(angle), sinA = sin(angle);
+    float aThird = 1.0/3.0;
+    float srt = sqrt(aThird);
+    float omc = 1.0 - cosA;
+    vec3 r;
+    r.x = c.x*(cosA+omc*aThird) + c.y*(aThird*omc-srt*sinA) + c.z*(aThird*omc+srt*sinA);
+    r.y = c.x*(aThird*omc+srt*sinA) + c.y*(cosA+omc*aThird) + c.z*(aThird*omc-srt*sinA);
+    r.z = c.x*(aThird*omc-srt*sinA) + c.y*(aThird*omc+srt*sinA) + c.z*(cosA+omc*aThird);
+    return r;
+}
+
+vec3 satAdjust(vec3 c, float sat) {
+    float lum = dot(c, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(lum), c, sat);
+}
 
 vec3 spectralColor(float c) {
     vec3 violet  = vec3(0.4, 0.1, 0.8);
@@ -554,6 +636,10 @@ void main() {
     // Tone map + gamma
     col = col / (col + 1.0);
     col = pow(col, vec3(0.93));
+
+    // Apply global hue shift, hole hue shift, and saturation
+    col = hueShift(col, u_hueAll + u_hueHole);
+    col = satAdjust(col, u_satMul);
 
     fragColor = vec4(col, 1.0);
 }
@@ -833,7 +919,8 @@ function getU(gl, prog, names) {
     const uNames = ['u_bass','u_mid','u_high','u_rms','u_centroid','u_kick',
         'u_flux','u_zcr','u_energy','u_time','u_aspect','u_resolution',
         'u_bands03','u_bands47','u_bands89','u_scene',
-        'u_viewProj','u_camRight','u_camUp','u_camDist'];
+        'u_viewProj','u_camRight','u_camUp','u_camDist',
+        'u_hueStars','u_hueHole','u_hueAll','u_satMul'];
     const uR = getU(gl, renderProg, uNames);
     const uP = getU(gl, postProg, uNames);
 
@@ -1061,6 +1148,26 @@ function getU(gl, prog, names) {
     });
     document.getElementById('debug-toggle').addEventListener('click', () => debugOverlay.classList.toggle('visible'));
 
+    // --- Color settings ---
+    const settingsPanel = document.getElementById('settings-panel');
+    document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
+
+    const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0 };
+
+    function setupSlider(id, key, toValue) {
+        const slider = document.getElementById(id);
+        const valEl = document.getElementById(id + '-val');
+        slider.addEventListener('input', () => {
+            colorSettings[key] = toValue(parseFloat(slider.value));
+            valEl.textContent = slider.value;
+        });
+    }
+    const deg2rad = v => v * Math.PI / 180.0;
+    setupSlider('hue-all', 'hueAll', deg2rad);
+    setupSlider('hue-stars', 'hueStars', deg2rad);
+    setupSlider('hue-hole', 'hueHole', deg2rad);
+    setupSlider('sat-all', 'satMul', v => v / 100.0);
+
     function fmt(s) { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60), sc = Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
 
     // =============================================================
@@ -1220,6 +1327,10 @@ function getU(gl, prog, names) {
         if (u.u_camRight !== null) gl.uniform3fv(u.u_camRight, cam.right);
         if (u.u_camUp !== null) gl.uniform3fv(u.u_camUp, cam.up);
         if (u.u_camDist !== null) gl.uniform1f(u.u_camDist, cam.dist);
+        if (u.u_hueStars !== null) gl.uniform1f(u.u_hueStars, colorSettings.hueAll + colorSettings.hueStars);
+        if (u.u_hueHole !== null) gl.uniform1f(u.u_hueHole, colorSettings.hueHole);
+        if (u.u_hueAll !== null) gl.uniform1f(u.u_hueAll, colorSettings.hueAll);
+        if (u.u_satMul !== null) gl.uniform1f(u.u_satMul, colorSettings.satMul);
     }
 
     // --- Render loop ---
