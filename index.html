@@ -33,6 +33,7 @@ canvas { display: block; width: 100vw; height: 100vh; }
   border-radius: 3px; transition: all 0.3s;
 }
 #demo-btn:hover { border-color: #a0f; color: #a0f; }
+#tab-audio-btn:hover { border-color: #0f8; color: #0f8; }
 #yt-go:hover { border-color: #f44; color: #f44; }
 
 #yt-input-row {
@@ -192,9 +193,10 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 <div id="drop-zone">
   <h1>Singularity</h1>
   <p>Drop an audio file or click to load</p>
-  <div style="display:flex;gap:12px;margin-bottom:16px">
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
     <label for="file-input">LOAD AUDIO</label>
     <button id="demo-btn" class="dz-btn">DEMO SONG</button>
+    <button id="tab-audio-btn" class="dz-btn">TAB AUDIO</button>
   </div>
   <div id="yt-input-row">
     <input type="text" id="yt-url" placeholder="Paste audio URL (.mp3, .wav, ...)" spellcheck="false" autocomplete="off">
@@ -860,6 +862,31 @@ class AudioEngine {
         return this.audio;
     }
 
+    async loadStream(stream) {
+        // Clean up previous
+        if (this.source) { try { this.source.disconnect(); } catch(e) {} }
+        if (this.audio) { this.audio.pause(); }
+        this.audio = null;
+        this._stream = stream;
+
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') await this.ctx.resume();
+
+        this.source = this.ctx.createMediaStreamSource(stream);
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.analyser.smoothingTimeConstant = 0.35;
+
+        this.source.connect(this.analyser);
+        // Don't connect to destination — the source tab already plays the audio
+        // Connecting would cause echo/double playback
+
+        const n = this.analyser.frequencyBinCount;
+        this.freqData = new Uint8Array(n);
+        this.timeData = new Uint8Array(this.analyser.fftSize);
+        this.prevFreqData = new Uint8Array(n);
+    }
+
     adaptBand(i, v) {
         const r = this.bandRng[i];
         if (v < r.min) r.min = v; else r.min += (v - r.min) * 0.002;
@@ -1281,6 +1308,51 @@ function getU(gl, prog, names) {
 
     fileInput.addEventListener('change', e => { if (e.target.files[0]) loadAudioFile(e.target.files[0]); });
     document.getElementById('demo-btn').addEventListener('click', () => loadAudioFile('demo.mp3'));
+
+    // --- Tab Audio capture ---
+    document.getElementById('tab-audio-btn').addEventListener('click', async () => {
+        try {
+            // Request screen/tab share with audio
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,  // required by API, we won't use it
+                audio: true
+            });
+
+            // Stop the video track — we only want audio
+            stream.getVideoTracks().forEach(t => t.stop());
+
+            const audioTracks = stream.getAudioTracks();
+            if (!audioTracks.length) {
+                showError('No audio shared. Make sure to check "Share tab audio" in the dialog.');
+                return;
+            }
+
+            // Create audio-only stream
+            const audioStream = new MediaStream(audioTracks);
+            await audio.loadStream(audioStream);
+
+            dropZone.classList.add('hidden');
+            controls.classList.add('visible');
+            playBtn.innerHTML = '&#9646;&#9646;';
+            isPlaying = true;
+            timeDisplay.textContent = 'TAB AUDIO';
+            seekBar.disabled = true;
+            seekBar.style.opacity = '0.3';
+
+            // Handle stream ending (user stops sharing)
+            audioTracks[0].addEventListener('ended', () => {
+                isPlaying = false;
+                playBtn.innerHTML = '&#9654;';
+                timeDisplay.textContent = 'Stopped';
+                seekBar.disabled = false;
+                seekBar.style.opacity = '1';
+            });
+        } catch (e) {
+            if (e.name !== 'AbortError') { // user cancelled is not an error
+                showError('Tab audio: ' + e.message);
+            }
+        }
+    });
 
     // --- Audio URL loading ---
     const urlInput = document.getElementById('yt-url');
