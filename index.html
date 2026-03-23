@@ -73,10 +73,10 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 /* ---- Panels (shared) ---- */
 .panel {
-  position: fixed; top: 36px; width: 240px; z-index: 50; display: none;
-  background: rgba(8,8,12,0.88); backdrop-filter: blur(16px);
+  position: fixed; top: 36px; width: 220px; z-index: 50; display: none;
+  background: rgba(8,8,12,0.9); backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
-  padding: 14px 16px; font-size: 0.65rem;
+  padding: 10px 12px; font-size: 0.6rem;
 }
 .panel.visible { display: block; }
 .panel h3 {
@@ -88,27 +88,15 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 #settings-panel { left: 12px; }
 
 .setting-row {
-  display: flex; align-items: center; margin: 0; padding: 6px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  display: flex; align-items: center; margin: 0; padding: 3px 0; gap: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
 }
 .setting-row:last-child { border-bottom: none; }
-.setting-row label { color: rgba(255,255,255,0.35); min-width: 58px; font-size: 0.6rem; }
-.setting-row input[type=range] { flex: 1; margin: 0 8px; }
+.setting-row label { color: rgba(255,255,255,0.35); min-width: 38px; font-size: 0.55rem; }
+.setting-row input[type=range] { flex: 1; margin: 0 2px; }
 .setting-row .val {
-  color: rgba(255,255,255,0.2); min-width: 24px; text-align: right;
-  font-size: 0.55rem; font-variant-numeric: tabular-nums;
-}
-.cat-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-top: 10px; padding-bottom: 2px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.cat-header:first-child { margin-top: 0; }
-.cat-header h3 { margin: 0; }
-.cat-auto {
-  display: flex; align-items: center; gap: 4px;
-  color: rgba(255,255,255,0.2); font-size: 0.5rem; cursor: pointer;
-  letter-spacing: 0.05em; text-transform: uppercase;
+  color: rgba(255,255,255,0.2); min-width: 22px; text-align: right;
+  font-size: 0.5rem; font-variant-numeric: tabular-nums;
 }
 .tw-btn {
   background: none; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.3);
@@ -130,18 +118,18 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 /* Auto checkbox — custom styled */
 .auto-cb {
-  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
-  border: 1px solid rgba(255,255,255,0.15); border-radius: 3px;
-  background: transparent; cursor: pointer; margin: 0 4px 0 0;
-  transition: all 0.15s; flex-shrink: 0; position: relative;
+  -webkit-appearance: none; appearance: none; width: 11px; height: 11px;
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 2px;
+  background: transparent; cursor: pointer; margin: 0; flex-shrink: 0;
+  transition: all 0.15s; position: relative;
 }
 .auto-cb:hover { border-color: rgba(255,255,255,0.35); }
 .auto-cb:checked {
   background: rgba(140,80,255,0.3); border-color: rgba(140,80,255,0.6);
 }
 .auto-cb:checked::after {
-  content: ''; position: absolute; top: 2px; left: 4px;
-  width: 4px; height: 7px; border: solid rgba(140,80,255,0.9);
+  content: ''; position: absolute; top: 1px; left: 3px;
+  width: 3px; height: 6px; border: solid rgba(140,80,255,0.9);
   border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
 }
 
@@ -208,32 +196,32 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="setting-row"><label>Saturate</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
 </div>
 
-<div class="panel" id="tweak-panel" style="left:12px;top:36px;max-height:calc(100vh - 100px);overflow-y:auto">
-  <div class="cat-header"><h3>Physics</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-physics">auto</label></div>
-  <div class="setting-row"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span></div>
-  <div class="setting-row"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span></div>
-  <div class="setting-row"><label>Bass Push</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span></div>
-  <div class="setting-row"><label>Kick Burst</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span></div>
-  <div class="cat-header"><h3>Stars</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-stars">auto</label></div>
-  <div class="setting-row"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span></div>
-  <div class="setting-row"><label>Reactivity</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span></div>
-  <div class="setting-row"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span></div>
-  <div class="setting-row"><label>Brightness</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span></div>
-  <div class="cat-header"><h3>Spacetime</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-spacetime">auto</label></div>
-  <div class="setting-row"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span></div>
-  <div class="setting-row"><label>Chromatic</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span></div>
-  <div class="setting-row"><label>Lensing</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span></div>
-  <div class="setting-row"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span></div>
-  <div class="cat-header"><h3>Black Hole</h3><label class="cat-auto"><input type="checkbox" class="auto-cb" id="auto-blackhole">auto</label></div>
-  <div class="setting-row"><label>Void Size</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
-  <div class="setting-row"><label>Ring Glow</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
-  <div class="setting-row"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
-  <div style="display:flex;gap:6px;margin-top:10px;justify-content:center">
+<div class="panel" id="tweak-panel" style="left:12px;top:36px;width:210px;max-height:calc(100vh - 90px);overflow-y:auto">
+  <h3>Physics</h3>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-gravity" title="Auto"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bass-push" title="Auto"><label>Bass</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-kick" title="Auto"><label>Kick</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span></div>
+  <h3>Stars</h3>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-size" title="Auto"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-react" title="Auto"><label>React</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bloom" title="Auto"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bright" title="Auto"><label>Bright</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span></div>
+  <h3>Spacetime</h3>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-twist" title="Auto"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-chroma" title="Auto"><label>Chroma</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-lens" title="Auto"><label>Lens</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-waves" title="Auto"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span></div>
+  <h3>Black Hole</h3>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-void" title="Auto"><label>Void</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-ring" title="Auto"><label>Ring</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-corona" title="Auto"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
+  <div style="display:flex;gap:6px;margin-top:8px;justify-content:center">
     <button class="tw-btn" id="tw-save">SAVE</button>
     <button class="tw-btn" id="tw-load">LOAD</button>
     <button class="tw-btn" id="tw-reset">RESET</button>
   </div>
-  <div id="tw-presets" style="margin-top:6px"></div>
+  <div id="tw-presets" style="margin-top:4px"></div>
 </div>
 
 <div class="panel" id="debug-overlay" style="right:12px">
@@ -1296,7 +1284,10 @@ function getU(gl, prog, names) {
         'tw-bloom':'bloom', 'tw-twist':'twist', 'tw-chroma':'chroma', 'tw-lens':'lens', 'tw-waves':'waves',
         'tw-void':'void', 'tw-ring':'ring', 'tw-corona':'corona'
     };
+    // Per-slider auto state
+    const tweakAuto = {};
     for (const [id, key] of Object.entries(tweakMap)) {
+        tweakAuto[id] = false;
         const slider = document.getElementById(id);
         const valEl = document.getElementById(id + '-val');
         slider.addEventListener('input', () => {
@@ -1304,18 +1295,63 @@ function getU(gl, prog, names) {
             valEl.textContent = slider.value;
         });
     }
+
+    // Wire up per-slider auto checkboxes
+    document.querySelectorAll('.tw-auto').forEach(cb => {
+        const twId = cb.dataset.tw;
+        cb.addEventListener('change', () => {
+            tweakAuto[twId] = cb.checked;
+            const slider = document.getElementById(twId);
+            slider.disabled = cb.checked;
+            slider.style.opacity = cb.checked ? '0.3' : '1';
+        });
+    });
+
+    function setTweak(id, val) {
+        const key = tweakMap[id];
+        tweaks[key] = val / 100;
+        document.getElementById(id).value = Math.round(val);
+        document.getElementById(id + '-val').textContent = Math.round(val);
+    }
+
+    // Per-slider auto formulas
+    const autoFormulas = {
+        'tw-gravity': f => 60 + f.energy * 140 + f.bass * 50,
+        'tw-orbit': f => 50 + f.energy * 100 + f.mid * 50,
+        'tw-bass-push': f => 50 + f.bass * 200 + f.kick * 50,
+        'tw-kick': f => 50 + f.kick * 200 + f.bass * 50,
+        'tw-size': f => 70 + f.rms * 100 + f.kick * 60,
+        'tw-react': f => 60 + f.energy * 180 + f.high * 60,
+        'tw-bloom': f => 50 + f.rms * 120 + f.high * 80,
+        'tw-bright': f => 60 + f.rms * 100 + f.energy * 80,
+        'tw-twist': f => 30 + f.bass * 250 + f.energy * 80,
+        'tw-chroma': f => 40 + f.energy * 200 + f.kick * 120,
+        'tw-lens': f => 50 + f.flux * 200 + f.bass * 100,
+        'tw-waves': f => 30 + f.kick * 250 + f.flux * 120,
+        'tw-void': f => 70 + f.energy * 130 + f.kick * 50,
+        'tw-ring': f => 50 + f.rms * 150 + f.kick * 80,
+        'tw-corona': f => 30 + f.energy * 150 + f.kick * 100,
+    };
+
+    function updateAutoTweaks() {
+        const f = audio.features;
+        for (const id in tweakAuto) {
+            if (tweakAuto[id] && autoFormulas[id]) {
+                setTweak(id, autoFormulas[id](f));
+            }
+        }
+    }
+
     // --- Save / Load / Reset presets (localStorage) ---
     const PRESETS_KEY = 'singularity-presets';
 
     function getAllSettings() {
         const s = {};
-        // Tweaks
-        for (const [id, key] of Object.entries(tweakMap)) s['tw:' + key] = tweaks[key];
-        // Auto categories
-        for (const cat in catAuto) s['auto:' + cat] = catAuto[cat];
-        // Color settings
+        for (const [id, key] of Object.entries(tweakMap)) {
+            s['tw:' + key] = tweaks[key];
+            s['twa:' + id] = tweakAuto[id];
+        }
         for (const k in colorSettings) s['col:' + k] = colorSettings[k];
-        // Color auto checkboxes
         ['auto-hue-all','auto-hue-stars','auto-hue-hole'].forEach(id => {
             s['cb:' + id] = document.getElementById(id).checked;
         });
@@ -1323,7 +1359,6 @@ function getU(gl, prog, names) {
     }
 
     function applySettings(s) {
-        // Tweaks
         for (const [id, key] of Object.entries(tweakMap)) {
             if (('tw:' + key) in s) {
                 tweaks[key] = s['tw:' + key];
@@ -1331,17 +1366,12 @@ function getU(gl, prog, names) {
                 document.getElementById(id).value = v;
                 document.getElementById(id + '-val').textContent = v;
             }
-        }
-        // Auto categories
-        for (const cat in catAuto) {
-            if (('auto:' + cat) in s) {
-                catAuto[cat] = s['auto:' + cat];
-                const cb = document.getElementById('auto-' + cat);
-                cb.checked = catAuto[cat];
-                cb.dispatchEvent(new Event('change'));
+            if (('twa:' + id) in s) {
+                tweakAuto[id] = s['twa:' + id];
+                const cb = document.querySelector(`.tw-auto[data-tw="${id}"]`);
+                if (cb) { cb.checked = tweakAuto[id]; cb.dispatchEvent(new Event('change')); }
             }
         }
-        // Colors
         const colKeys = { hueAll: 'hue-all', hueStars: 'hue-stars', hueHole: 'hue-hole', satMul: 'sat-all' };
         for (const [key, id] of Object.entries(colKeys)) {
             if (('col:' + key) in s) {
@@ -1351,140 +1381,60 @@ function getU(gl, prog, names) {
                 document.getElementById(id + '-val').textContent = v;
             }
         }
-        // Color auto checkboxes
         ['auto-hue-all','auto-hue-stars','auto-hue-hole'].forEach(id => {
             if (('cb:' + id) in s) {
                 const cb = document.getElementById(id);
-                cb.checked = s['cb:' + id];
-                cb.dispatchEvent(new Event('change'));
+                cb.checked = s['cb:' + id]; cb.dispatchEvent(new Event('change'));
             }
         });
     }
 
     function getSavedPresets() {
-        try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || {}; }
-        catch(e) { return {}; }
+        try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || {}; } catch(e) { return {}; }
     }
 
     function renderPresets() {
-        const container = document.getElementById('tw-presets');
+        const c = document.getElementById('tw-presets');
         const presets = getSavedPresets();
         const names = Object.keys(presets);
-        if (!names.length) { container.innerHTML = ''; return; }
-        container.innerHTML = names.map(name =>
+        if (!names.length) { c.innerHTML = ''; return; }
+        c.innerHTML = names.map(n =>
             `<span style="display:inline-flex;align-items:center;margin:1px">` +
-            `<button class="preset-btn" data-name="${name}">${name}</button>` +
-            `<button class="preset-del" data-name="${name}">&times;</button></span>`
+            `<button class="preset-btn" data-name="${n}">${n}</button>` +
+            `<button class="preset-del" data-name="${n}">&times;</button></span>`
         ).join('');
-        container.querySelectorAll('.preset-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const p = getSavedPresets()[btn.dataset.name];
-                if (p) applySettings(p);
-            });
-        });
-        container.querySelectorAll('.preset-del').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const presets = getSavedPresets();
-                delete presets[btn.dataset.name];
-                localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
-                renderPresets();
-            });
-        });
+        c.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => {
+            const p = getSavedPresets()[b.dataset.name]; if (p) applySettings(p);
+        }));
+        c.querySelectorAll('.preset-del').forEach(b => b.addEventListener('click', () => {
+            const p = getSavedPresets(); delete p[b.dataset.name];
+            localStorage.setItem(PRESETS_KEY, JSON.stringify(p)); renderPresets();
+        }));
     }
 
     document.getElementById('tw-save').addEventListener('click', () => {
         const name = prompt('Preset name:');
-        if (!name || !name.trim()) return;
-        const presets = getSavedPresets();
-        presets[name.trim()] = getAllSettings();
-        localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
-        renderPresets();
+        if (!name?.trim()) return;
+        const p = getSavedPresets(); p[name.trim()] = getAllSettings();
+        localStorage.setItem(PRESETS_KEY, JSON.stringify(p)); renderPresets();
     });
-
     document.getElementById('tw-load').addEventListener('click', () => {
-        const presets = getSavedPresets();
-        const names = Object.keys(presets);
-        if (!names.length) { alert('No saved presets'); return; }
+        const p = getSavedPresets(), names = Object.keys(p);
+        if (!names.length) return;
         const name = prompt('Load preset:\n' + names.join(', '));
-        if (name && presets[name]) applySettings(presets[name]);
+        if (name && p[name]) applySettings(p[name]);
     });
-
     document.getElementById('tw-reset').addEventListener('click', () => {
         for (const [id, key] of Object.entries(tweakMap)) {
             tweaks[key] = 1.0;
+            tweakAuto[id] = false;
             document.getElementById(id).value = 100;
             document.getElementById(id + '-val').textContent = '100';
-        }
-        for (const cat in catAuto) {
-            catAuto[cat] = false;
-            const cb = document.getElementById('auto-' + cat);
-            cb.checked = false;
-            cb.dispatchEvent(new Event('change'));
+            const cb = document.querySelector(`.tw-auto[data-tw="${id}"]`);
+            if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); }
         }
     });
-
     renderPresets();
-
-    // Category auto checkboxes — disable sliders in that group when checked
-    const catGroups = {
-        physics: ['tw-gravity','tw-orbit','tw-bass-push','tw-kick'],
-        stars: ['tw-size','tw-react','tw-bloom','tw-bright'],
-        spacetime: ['tw-twist','tw-chroma','tw-lens','tw-waves'],
-        blackhole: ['tw-void','tw-ring','tw-corona']
-    };
-    const catAuto = { physics: false, stars: false, spacetime: false, blackhole: false };
-    for (const [cat, ids] of Object.entries(catGroups)) {
-        const cb = document.getElementById('auto-' + cat);
-        cb.addEventListener('change', () => {
-            catAuto[cat] = cb.checked;
-            ids.forEach(id => {
-                document.getElementById(id).disabled = cb.checked;
-                document.getElementById(id).style.opacity = cb.checked ? '0.3' : '1';
-            });
-        });
-    }
-
-    function setTweak(id, val) {
-        const key = tweakMap[id];
-        tweaks[key] = val / 100;
-        document.getElementById(id).value = Math.round(val);
-        document.getElementById(id + '-val').textContent = Math.round(val);
-    }
-
-    function updateAutoTweaks() {
-        const f = audio.features;
-
-        if (catAuto.physics) {
-            // Gravity surges with energy, orbit with mids
-            setTweak('tw-gravity', 60 + f.energy * 140 + f.bass * 50);
-            setTweak('tw-orbit', 50 + f.energy * 100 + f.mid * 50);
-            setTweak('tw-bass-push', 50 + f.bass * 200 + f.kick * 50);
-            setTweak('tw-kick', 50 + f.kick * 200 + f.bass * 50);
-        }
-
-        if (catAuto.stars) {
-            // Size pulses with RMS, reactivity with energy
-            setTweak('tw-size', 70 + f.rms * 100 + f.kick * 60);
-            setTweak('tw-react', 60 + f.energy * 180 + f.high * 60);
-            setTweak('tw-bloom', 50 + f.rms * 120 + f.high * 80);
-            setTweak('tw-bright', 60 + f.rms * 100 + f.energy * 80);
-        }
-
-        if (catAuto.spacetime) {
-            // Twist with bass, chromatic with energy, lensing with flux, waves with kicks
-            setTweak('tw-twist', 30 + f.bass * 250 + f.energy * 80);
-            setTweak('tw-chroma', 40 + f.energy * 200 + f.kick * 120);
-            setTweak('tw-lens', 50 + f.flux * 200 + f.bass * 100);
-            setTweak('tw-waves', 30 + f.kick * 250 + f.flux * 120);
-        }
-
-        if (catAuto.blackhole) {
-            // Void grows with energy, ring with RMS, corona with peaks
-            setTweak('tw-void', 70 + f.energy * 130 + f.kick * 50);
-            setTweak('tw-ring', 50 + f.rms * 150 + f.kick * 80);
-            setTweak('tw-corona', 30 + f.energy * 150 + f.kick * 100);
-        }
-    }
 
     // --- Color settings ---
     const settingsPanel = document.getElementById('settings-panel');
