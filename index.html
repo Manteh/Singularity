@@ -128,7 +128,7 @@ canvas { display: block; width: 100vw; height: 100vh; }
 // Stateless GPU particle system (inspired by NOVA architecture)
 // ============================================================
 
-const COUNT = 30000;
+const COUNT = 60000;
 
 function showError(msg) {
     const el = document.getElementById('error-msg');
@@ -146,51 +146,55 @@ const vertexShader = `#version 300 es
 precision highp float;
 
 layout(location = 0) in vec2 a_quad;
-layout(location = 1) in vec2 a_base;
-layout(location = 2) in vec2 a_dir;
-layout(location = 3) in float a_orbit;
+layout(location = 1) in vec2 a_base;     // base XZ position in disk
+layout(location = 2) in vec2 a_dir;      // radial direction outward
+layout(location = 3) in float a_orbit;   // orbital radius 0-1
 layout(location = 4) in float a_seed;
 layout(location = 5) in float a_band;
-layout(location = 6) in float a_size;    // per-particle size class (set at init)
-layout(location = 7) in float a_bright;  // per-particle brightness class
+layout(location = 6) in float a_size;
+layout(location = 7) in float a_bright;
+layout(location = 8) in float a_height;  // Y offset (disk thickness)
 
 uniform float u_bass, u_mid, u_high, u_rms, u_centroid, u_kick;
 uniform float u_flux, u_zcr, u_energy, u_time, u_aspect;
 uniform vec2 u_resolution;
 uniform vec4 u_bands03, u_bands47;
 uniform vec2 u_bands89;
+uniform mat4 u_viewProj;   // combined view * projection matrix
+uniform vec3 u_camRight;   // camera right vector for billboarding
+uniform vec3 u_camUp;      // camera up vector for billboarding
 
 out vec4 v_color;
 out vec2 v_uv;
-out float v_coreSharp; // how sharp this star's core is
+out float v_coreSharp;
 
 float hash(float n) { return fract(sin(n) * 43758.5453); }
 
 vec3 spectralColor(float c) {
-    vec3 warm   = vec3(1.0, 0.2, 0.03);
-    vec3 orange = vec3(1.0, 0.5, 0.08);
-    vec3 gold   = vec3(1.0, 0.8, 0.2);
-    vec3 cyan   = vec3(0.15, 0.7, 1.0);
-    vec3 blue   = vec3(0.25, 0.35, 1.0);
-    vec3 white  = vec3(0.9, 0.9, 1.0);
-    if (c < 0.2) return mix(warm, orange, c * 5.0);
-    if (c < 0.4) return mix(orange, gold, (c - 0.2) * 5.0);
-    if (c < 0.6) return mix(gold, cyan, (c - 0.4) * 5.0);
-    if (c < 0.8) return mix(cyan, blue, (c - 0.6) * 5.0);
-    return mix(blue, white, (c - 0.8) * 5.0);
+    // Space palette: deep violet → magenta → electric blue → cyan → white
+    vec3 violet  = vec3(0.4, 0.1, 0.8);
+    vec3 magenta = vec3(0.85, 0.15, 0.6);
+    vec3 elBlue  = vec3(0.1, 0.3, 1.0);
+    vec3 cyan    = vec3(0.1, 0.75, 0.95);
+    vec3 white   = vec3(0.85, 0.88, 1.0);
+    if (c < 0.25) return mix(violet, magenta, c * 4.0);
+    if (c < 0.5)  return mix(magenta, elBlue, (c - 0.25) * 4.0);
+    if (c < 0.75) return mix(elBlue, cyan, (c - 0.5) * 4.0);
+    return mix(cyan, white, (c - 0.75) * 4.0);
 }
 
 vec3 bandColor(int b) {
-    if(b==0) return vec3(0.9, 0.1, 0.1);
-    if(b==1) return vec3(1.0, 0.35, 0.1);
-    if(b==2) return vec3(1.0, 0.6, 0.1);
-    if(b==3) return vec3(1.0, 0.85, 0.2);
-    if(b==4) return vec3(0.5, 0.9, 0.2);
-    if(b==5) return vec3(0.2, 0.85, 0.5);
-    if(b==6) return vec3(0.15, 0.65, 0.9);
-    if(b==7) return vec3(0.3, 0.45, 1.0);
-    if(b==8) return vec3(0.6, 0.3, 1.0);
-    return vec3(0.85, 0.7, 1.0);
+    // Deep space spectrum per frequency band
+    if(b==0) return vec3(0.6, 0.05, 0.15);   // deep crimson
+    if(b==1) return vec3(0.8, 0.1, 0.4);     // hot pink
+    if(b==2) return vec3(0.7, 0.1, 0.7);     // purple
+    if(b==3) return vec3(0.5, 0.15, 0.9);    // violet
+    if(b==4) return vec3(0.2, 0.3, 1.0);     // electric blue
+    if(b==5) return vec3(0.1, 0.55, 0.95);   // azure
+    if(b==6) return vec3(0.05, 0.75, 0.85);  // teal
+    if(b==7) return vec3(0.15, 0.85, 0.7);   // aqua
+    if(b==8) return vec3(0.5, 0.3, 1.0);     // indigo
+    return vec3(0.75, 0.65, 1.0);            // lavender
 }
 
 float getBand(int b) {
@@ -205,116 +209,163 @@ void main() {
     int band = int(a_band);
     float bVal = getBand(band);
 
-    // === Per-particle unique time signatures ===
-    // Each star has its OWN rhythm, phase, and speed
+    // Per-particle identity hashes
     float h1 = hash(seed * 1.1), h2 = hash(seed * 2.2), h3 = hash(seed * 3.3);
     float h4 = hash(seed * 4.4), h5 = hash(seed * 5.5), h6 = hash(seed * 6.6);
     float h7 = hash(seed * 7.7);
 
-    // Each particle's time runs at a unique speed with unique phase
+    // Per-particle time (unique rhythm)
     float myTime1 = t * (0.3 + h1 * 0.7) + seed * 50.0;
     float myTime2 = t * (0.2 + h2 * 0.6) + seed * 37.0;
     float myTime3 = t * (0.4 + h3 * 0.5) + seed * 63.0;
 
+    // =============================================
+    // POSITION: Physics-driven but controlled
+    // =============================================
     vec2 p = a_base;
 
-    // === BREATHING: Energy contraction ===
-    p *= 1.0 + (1.0 - u_energy) * 0.2;
+    // --- GRAVITY: Black hole pulls everything inward ---
+    // Pull strength driven by energy: more energy = stronger gravity
+    // This is the core physics interaction
+    float gravityStrength = 0.02 + u_energy * 0.06 + u_bass * 0.03;
+    // Inverse-distance pull (softened) — closer stars feel it more
+    float dist0 = length(p);
+    float pull = gravityStrength / (dist0 + 0.15);
+    // Each star resists differently (h4 = inertia)
+    float inertia = 0.4 + h4 * 0.6;
+    p -= a_dir * pull * inertia * 0.08;
 
-    // === BASS PUSH: Radial explosion + kick burst ===
-    // Each particle has its own sensitivity to bass (h4 controls reactivity)
-    float myBassReact = 0.3 + h4 * 0.8;
-    float bassPush = u_bass * 0.4 * myBassReact + u_kick * (0.6 + h4 * 1.0);
-    p += a_dir * bassPush;
+    // --- REPULSION: Kicks and bass peaks push outward ---
+    // When the beat hits, gravity reverses momentarily
+    float repulse = u_kick * 0.15 * (0.3 + h4 * 0.7);
+    repulse += u_bass * 0.04 * h5; // bass gives gentle outward pressure
+    p += a_dir * repulse;
 
-    // === MIDS: Per-particle unique orbital dance ===
-    // Not just sin/cos — each particle traces its own Lissajous figure
-    float mAmp = u_mid * 0.12 + 0.015;
-    float mRatioX = 1.0 + floor(h1 * 3.0);  // 1, 2, or 3
-    float mRatioY = 1.0 + floor(h2 * 3.0);
-    float mPhaseX = h3 * 6.2832;
-    float mPhaseY = h4 * 6.2832;
-    p.x += sin(myTime1 * mRatioX + mPhaseX) * mAmp * (0.5 + h5);
-    p.y += sin(myTime2 * mRatioY + mPhaseY) * mAmp * (0.5 + h6) * 0.8;
-
-    // === ROTATION: Differential (inner=fast, outer=slow) ===
-    float rotSpeed = 0.25 + u_bass * 0.6 + u_energy * 0.3;
-    float rotAngle = t * rotSpeed * (1.0 + (1.0 - a_orbit) * 2.5);
-    float cs = cos(rotAngle), sn = sin(rotAngle);
+    // --- ORBIT: Slow differential rotation ---
+    float flowSpeed = 0.03 + u_energy * 0.03;
+    float keplerFactor = 1.0 + (1.0 - a_orbit) * 1.2;
+    float flowAngle = t * flowSpeed * keplerFactor + seed * 6.28;
+    float cs = cos(flowAngle), sn = sin(flowAngle);
     p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
 
-    // === HIGHS: Per-particle sparkle (unique freq and amp) ===
-    float myHighFreq = 5.0 + h1 * 10.0;  // each star jitters at its own frequency
-    float myHighAmp = u_high * 0.03 * (0.3 + h5 * 1.2);
-    p.x += sin(t * myHighFreq + seed * 100.0) * myHighAmp;
-    p.y += cos(t * (myHighFreq * 0.9) + seed * 80.0) * myHighAmp;
+    // --- TIDAL FORCES: Mids create shearing streams ---
+    vec2 tangent = vec2(-a_dir.y, a_dir.x);
+    float wavePhase = a_orbit * 5.0 + seed * 1.5;
+    float tidalAmp = u_mid * 0.012 + 0.002;
+    p += tangent * sin(wavePhase + t * 0.35) * tidalAmp;
 
-    // === PER-BAND PUSH: Each star reacts to its frequency ===
-    p += a_dir * bVal * 0.18 * (0.5 + h6);
+    // --- BAND RESONANCE: Stars shift when their frequency plays ---
+    // Outward nudge when active, slight inward drift when silent
+    float bandDisplace = bVal * 0.03 - (1.0 - bVal) * 0.005;
+    p += a_dir * bandDisplace * h6;
 
-    // === ZCR CHAOS: Some particles are "nervous", others "calm" ===
-    float myNervousness = h3 * h3; // squared = most particles calm, few are very nervous
-    float chaos = u_zcr * 0.04 * myNervousness;
-    p.x += sin(t * 13.0 + seed * 200.0) * chaos;
-    p.y += cos(t * 11.0 + seed * 180.0) * chaos;
+    // --- ENERGY CONTRACTION: High energy compresses the disk ---
+    p *= 1.0 + (1.0 - u_energy) * 0.08;
 
-    // === FLUX WARP: Spacetime ripple, unique phase per particle ===
-    float warp = u_flux * 0.05 * (0.3 + h2);
-    float warpAngle = myTime1 * 0.4 + a_orbit * 4.0 + h7 * 6.28;
-    p += vec2(sin(warpAngle), cos(warpAngle * 1.3)) * warp;
+    // --- FLUX: Subtle spacetime ripple ---
+    p += a_dir * sin(a_orbit * 6.0 - t * 0.5) * u_flux * 0.008;
 
+    // 3D position: XZ = disk, Y = height
+    // Kick inflates the disk vertically
+    float yOff = a_height * (1.0 + u_kick * 0.6 + u_energy * 0.2);
+    vec3 pos3 = vec3(p.x, yOff, p.y);
     float pDist = length(p);
+    float nearCenter = smoothstep(0.6, 0.03, pDist);
 
-    // === PARTICLE SIZE: Wide variation, per-particle class ===
-    // a_size is set at init with power-law distribution (few big, many small)
-    // Each star's own "heartbeat" pulse tied to its band
-    float myPulseSpeed = 1.0 + h1 * 3.0;
+    // =============================================
+    // SIZE: This is where music energy lives
+    // Stars BREATHE, SWELL, and PULSE with the music
+    // =============================================
+
+    // Each star has its own heartbeat synced to its frequency band
+    float myPulseSpeed = 1.5 + h1 * 2.5;
     float myPulsePhase = h2 * 6.28;
-    float pulse = 0.7 + 0.3 * sin(myTime1 * myPulseSpeed + myPulsePhase + bVal * 3.0);
+    // Pulse amplitude increases when this star's band is active
+    float pulseDepth = 0.2 + bVal * 0.5;
+    float pulse = 1.0 - pulseDepth + pulseDepth * (0.5 + 0.5 * sin(myTime1 * myPulseSpeed + myPulsePhase));
 
-    // Band reactivity makes the star swell when its frequency hits
-    float bandSwell = bVal * bVal * 3.0; // squared = more dramatic response to peaks
-    float kickSwell = u_kick * 2.0 * h4;
+    // Band reactivity: star SWELLS when its frequency hits hard
+    float bandSwell = 1.0 + bVal * bVal * 4.0;
 
-    // Accretion glow: stars near center are bigger and brighter
-    float nearCenter = smoothstep(0.3, 0.02, pDist);
+    // Kick: sudden size burst, per-particle reactivity
+    float kickBurst = 1.0 + u_kick * 3.0 * (0.3 + h4 * 0.7);
 
-    float sz = a_size * pulse * (1.0 + bandSwell + kickSwell + u_rms * 0.8 + nearCenter * 2.5);
-    sz = max(sz, 0.5); // minimum visible
-    float szPx = sz / u_resolution.y;
+    // RMS: overall loudness makes everything bigger
+    float loudnessScale = 1.0 + u_rms * 1.2;
 
-    // Position
-    vec2 screenPos = vec2(p.x / u_aspect, p.y);
-    gl_Position = vec4(screenPos + a_quad * szPx, 0.0, 1.0);
+    // Energy: high energy = stars swell toward center
+    float energySwell = 1.0 + u_energy * 0.8 * nearCenter;
+
+    float sz = a_size * pulse * bandSwell * kickBurst * loudnessScale * energySwell;
+    sz = max(sz, 0.4);
+
+    // Billboard
+    vec3 billboard = pos3 + (u_camRight * a_quad.x + u_camUp * a_quad.y) * sz * 0.006;
+    gl_Position = u_viewProj * vec4(billboard, 1.0);
     v_uv = a_quad;
 
-    // Core sharpness: bigger/brighter stars have sharper cores
-    v_coreSharp = 2.0 + a_bright * 4.0 + nearCenter * 3.0;
+    // =============================================
+    // COLOR: Stars change hue, temperature, and
+    // intensity based on what the music is doing
+    // =============================================
 
-    // === COLOR: Layered, per-particle unique tint ===
+    // Base color from spectral centroid (overall music tone)
     vec3 baseCol = spectralColor(u_centroid);
+
+    // Band color — each star has its own frequency identity
     vec3 bC = bandColor(band);
 
-    // Each star has its own color personality
-    float colorMix = bVal * 0.6 * (0.5 + h7);
-    vec3 col = mix(baseCol, bC, colorMix);
+    // When this star's band is active, it shifts toward its band color
+    // When quiet, it falls back to the ambient spectral color
+    float bandActivity = bVal * 0.7 * (0.4 + h7 * 0.6);
+    vec3 col = mix(baseCol, bC, bandActivity);
 
-    // Accretion disk: hotter near center
-    col = mix(col, col * 2.5 + vec3(0.5, 0.25, 0.05), nearCenter * 0.7);
+    // Bass makes stars warmer (shifts toward magenta/red)
+    vec3 bassWarm = vec3(0.9, 0.2, 0.5);
+    col = mix(col, bassWarm, u_bass * 0.25 * (0.5 + h5 * 0.5));
 
-    // Per-particle shimmer: some stars twinkle white on high frequencies
-    float shimmer = u_high * h7 * sin(myTime3 * 4.0) * 0.5;
-    col = mix(col, vec3(1.0), max(shimmer, 0.0));
+    // High frequencies make bright stars flash white (shimmer)
+    float shimmerRate = 3.0 + h1 * 5.0;
+    float shimmer = u_high * a_bright * (0.5 + 0.5 * sin(myTime3 * shimmerRate));
+    col = mix(col, vec3(1.0), shimmer * 0.5);
 
-    // Brightness: a_bright gives each star its own luminosity class
-    float bright = a_bright * (1.0 + u_rms * 0.6);
-    col *= 0.8 + bright * 1.5;
+    // Near center = hotter, more saturated
+    col = mix(col, col * 2.0 + vec3(0.25, 0.1, 0.45), nearCenter * 0.6);
 
-    // Alpha: each star has its own baseline visibility
-    float baseAlpha = 0.15 + a_bright * 0.5;
-    float alpha = baseAlpha + u_energy * 0.2 + bVal * bVal * 0.4 + nearCenter * 0.5;
-    alpha += u_kick * 0.25 * h4;
-    alpha *= pulse;
+    // Kick flash: momentary white-hot burst
+    col = mix(col, vec3(1.0, 0.9, 0.95), u_kick * 0.3 * (0.3 + h4 * 0.7));
+
+    // =============================================
+    // BRIGHTNESS & ALPHA: Loudness = visibility
+    // Stars glow brighter when the music is loud
+    // =============================================
+
+    // Base brightness from star class
+    float bright = 0.4 + a_bright * 0.6;
+
+    // RMS loudness drives overall brightness
+    bright *= 0.6 + u_rms * 1.0;
+
+    // Band activity makes individual stars flare
+    bright *= 1.0 + bVal * bVal * 1.5;
+
+    // Energy drives the whole field
+    bright *= 0.7 + u_energy * 0.8;
+
+    col *= bright;
+
+    // Alpha: always visible, but louder = more opaque
+    float alpha = 0.2 + a_bright * 0.4;                  // base: always visible
+    alpha += u_energy * 0.25;                             // energy lifts everything
+    alpha += bVal * bVal * 0.3;                           // band activity
+    alpha += nearCenter * 0.4;                            // denser near center
+    alpha += u_kick * 0.2 * h4;                           // kick flash
+    alpha *= pulse;                                        // breathe with heartbeat
+
+    // Core sharpness: driven by energy and brightness
+    // High energy = sharper, more defined stars
+    // Low energy = softer, dreamier
+    v_coreSharp = 1.5 + a_bright * 3.0 + u_energy * 2.0 + nearCenter * 2.0;
 
     v_color = vec4(col, min(alpha, 1.0));
 }
@@ -330,20 +381,21 @@ out vec4 fragColor;
 void main() {
     float d = length(v_uv);
 
-    // Sharp bright core + soft halo = star-like, not blob-like
-    float core = exp(-d * d * v_coreSharp * 8.0);  // tight bright center
-    float halo = exp(-d * d * 1.5) * 0.25;         // soft diffuse glow
+    // Sharp core that responds to v_coreSharp
+    float core = exp(-d * d * v_coreSharp * 6.0);
+    // Soft halo — the glow around each star
+    float halo = exp(-d * d * 1.2) * 0.3;
     float shape = core + halo;
 
-    // 4-point diffraction spikes (subtle, star-like)
+    // 4-point diffraction spikes — visible on bright stars
     float angle = atan(v_uv.y, v_uv.x);
-    float spike = pow(abs(cos(angle * 2.0)), 32.0) * exp(-d * 3.0) * 0.15;
+    float spike = pow(abs(cos(angle * 2.0)), 40.0) * exp(-d * 2.5) * 0.12 * v_color.a;
 
     vec3 col = v_color.rgb * (shape + spike);
-    // Core is slightly whiter/hotter than edges
-    col += vec3(0.15, 0.1, 0.08) * core * core * v_color.a;
+    // Hot white core
+    col += vec3(0.2, 0.15, 0.3) * core * core * v_color.a;
 
-    float alpha = v_color.a * (shape + spike * 0.5);
+    float alpha = v_color.a * (shape + spike * 0.4);
     fragColor = vec4(col, alpha);
 }
 `;
@@ -371,20 +423,19 @@ uniform float u_bass;
 uniform float u_high;
 uniform float u_energy;
 uniform float u_time;
+uniform float u_camDist;  // camera distance for zoom-aware sizing
 uniform vec2 u_resolution;
 
 vec3 spectralColor(float c) {
-    vec3 warm  = vec3(1.0, 0.25, 0.05);
-    vec3 orange = vec3(1.0, 0.55, 0.1);
-    vec3 gold  = vec3(1.0, 0.8, 0.2);
-    vec3 cyan  = vec3(0.2, 0.7, 1.0);
-    vec3 blue  = vec3(0.3, 0.4, 1.0);
-    vec3 white = vec3(0.85, 0.85, 1.0);
-    if (c < 0.2) return mix(warm, orange, c * 5.0);
-    if (c < 0.4) return mix(orange, gold, (c - 0.2) * 5.0);
-    if (c < 0.6) return mix(gold, cyan, (c - 0.4) * 5.0);
-    if (c < 0.8) return mix(cyan, blue, (c - 0.6) * 5.0);
-    return mix(blue, white, (c - 0.8) * 5.0);
+    vec3 violet  = vec3(0.4, 0.1, 0.8);
+    vec3 magenta = vec3(0.85, 0.15, 0.6);
+    vec3 elBlue  = vec3(0.1, 0.3, 1.0);
+    vec3 cyan    = vec3(0.1, 0.75, 0.95);
+    vec3 white   = vec3(0.85, 0.88, 1.0);
+    if (c < 0.25) return mix(violet, magenta, c * 4.0);
+    if (c < 0.5)  return mix(magenta, elBlue, (c - 0.25) * 4.0);
+    if (c < 0.75) return mix(elBlue, cyan, (c - 0.5) * 4.0);
+    return mix(cyan, white, (c - 0.75) * 4.0);
 }
 
 void main() {
@@ -394,9 +445,12 @@ void main() {
     float dist = length(toCenter);
     vec2 dir = dist > 0.0 ? toCenter / dist : vec2(0.0);
 
-    // Gravitational lensing — stronger on drops
-    float lensRadius = 0.12 + u_flux * 0.08 + u_kick * 0.06;
-    float lensStrength = 0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03;
+    // Zoom scale for lensing
+    float zs = 3.0 / max(u_camDist, 0.5);
+
+    // Gravitational lensing — stronger on drops, scales with zoom
+    float lensRadius = (0.12 + u_flux * 0.08 + u_kick * 0.06) * zs;
+    float lensStrength = (0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03) * zs;
     float lensFactor = smoothstep(lensRadius, 0.0, dist);
     vec2 lensedUV = clamp(uv + dir * lensFactor * lensStrength, 0.0, 1.0);
 
@@ -417,38 +471,78 @@ void main() {
     bloom *= mix(vec3(1.0), spectralColor(u_centroid), 0.6);
     col += bloom * bloomStr;
 
-    // Drop intensity: kicks + bass + energy combined
-    float dropHeat = u_kick * 0.6 + u_bass * 0.3 + u_energy * 0.1;
+    // Zoom scale: all black hole features scale inversely with camera distance
+    // At default dist (3.0), zoomScale = 1.0. Closer = bigger, further = smaller.
+    float zoomScale = 3.0 / max(u_camDist, 0.5);
+
+    // === ENERGY INTENSITY ===
+    float energy = u_energy;
+    float dropHeat = u_kick * 0.5 + u_bass * 0.3 + energy * 0.2;
     dropHeat = min(dropHeat, 1.0);
 
-    // Black hole color: shifts warm (red/orange) on drops, cool (centroid) at rest
-    vec3 coolCol = spectralColor(u_centroid);
-    vec3 hotCol = vec3(1.0, 0.35, 0.05); // fiery orange-red
-    vec3 holeColor = mix(coolCol, hotCol, dropHeat);
+    // === HORIZON COLOR: space palette temperature gradient ===
+    // Calm: deep violet/blue → building: magenta/purple → peak: cyan/white-hot
+    vec3 coldCol  = vec3(0.15, 0.05, 0.4);        // deep space violet
+    vec3 warmCol  = vec3(0.6, 0.1, 0.6);          // nebula purple
+    vec3 hotCol   = vec3(0.9, 0.15, 0.7);         // hot magenta
+    vec3 burnCol  = vec3(0.3, 0.5, 1.0);          // electric blue
+    vec3 peakCol  = vec3(0.7, 0.9, 1.0);          // white-cyan peak
 
-    // Event horizon glow ring — swells on drops
-    float ringR = 0.035 + u_rms * 0.015 + u_bass * 0.02 + u_kick * 0.03;
-    float ringDist = abs(dist - ringR);
-    float ringTight = 12000.0 - dropHeat * 6000.0; // ring gets wider/softer on hits
-    float ring = exp(-ringDist * ringDist * ringTight) * (0.6 + u_rms * 2.0 + u_kick * 2.5);
-    col += holeColor * 2.0 * ring;
+    vec3 holeColor;
+    if (dropHeat < 0.2) {
+        holeColor = mix(coldCol, warmCol, dropHeat * 5.0);
+    } else if (dropHeat < 0.4) {
+        holeColor = mix(warmCol, hotCol, (dropHeat - 0.2) * 5.0);
+    } else if (dropHeat < 0.65) {
+        holeColor = mix(hotCol, burnCol, (dropHeat - 0.4) * 4.0);
+    } else {
+        holeColor = mix(burnCol, peakCol, (dropHeat - 0.65) * 2.86);
+    }
 
-    // Outer accretion ring — expands with energy
-    float outerR = ringR + 0.02 + u_energy * 0.02 + u_kick * 0.02;
-    float outerDist = abs(dist - outerR);
-    float outerRing = exp(-outerDist * outerDist * 2500.0) * (0.2 + u_energy * 0.5 + u_kick * 0.4);
-    col += holeColor * 0.7 * outerRing;
+    // === SPACETIME DISTORTION: only on energy peaks ===
+    float angle = atan(toCenter.y, toCenter.x);
 
-    // Inner heat glow — diffuse warm light flooding out from center on drops
-    float heatGlow = smoothstep(0.15 + u_kick * 0.06, 0.0, dist) * dropHeat * 1.2;
-    col += hotCol * heatGlow;
+    // Distortion threshold: nothing happens below 0.5 energy, ramps up above
+    float peakIntensity = smoothstep(0.4, 0.85, energy) + u_kick * 0.8;
+    peakIntensity = min(peakIntensity, 1.0);
 
-    // Black hole void — grows bigger on drops
-    float voidR = 0.02 + u_rms * 0.008 + u_kick * 0.015 + u_bass * 0.008;
-    col *= smoothstep(voidR, voidR + 0.012 + dropHeat * 0.005, dist);
+    // When energy peaks, spacetime tears — asymmetric, violent distortion
+    float warp1 = sin(angle * 2.0 + u_time * 0.7 + u_bass * 6.0) * 0.4;
+    float warp2 = sin(angle * 3.0 - u_time * 1.3 + energy * 5.0) * 0.3;
+    float warp3 = sin(angle * 5.0 + u_time * 2.5) * 0.15;
+    // Bass-driven asymmetric bulge
+    float warp4 = sin(angle * 1.0 + u_time * 0.3) * u_bass * 0.6;
+    float shapeWarp = (warp1 + warp2 + warp3 + warp4) * peakIntensity;
 
-    // Kick flash
-    col += vec3(u_kick * 0.12);
+    float warpedDist = dist + shapeWarp * 0.02 * zoomScale;
+
+    // === EVENT HORIZON: swells and distorts on peaks ===
+    float ringR = (0.03 + u_rms * 0.012 + energy * 0.025 + u_kick * 0.035) * zoomScale;
+    float ringDist = abs(warpedDist - ringR);
+    float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
+    float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
+    col += holeColor * 2.5 * ring;
+
+    // === SECONDARY RING: outer halo ===
+    float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
+    float outerDist2 = abs(warpedDist - outerR);
+    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
+    vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
+    col += outerCol * 0.6 * outerRing;
+
+    // === ENERGY CORONA: when it really goes hard, light floods outward ===
+    float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
+    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8;
+    vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
+    col += coronaCol * corona;
+
+    // === BLACK HOLE VOID: grows with energy ===
+    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale;
+    float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
+    col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
+
+    // Kick flash — tinted purple instead of white
+    col += vec3(0.3, 0.15, 0.5) * u_kick * 0.15;
 
     // Vignette
     col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
@@ -730,7 +824,8 @@ function getU(gl, prog, names) {
 
     const uNames = ['u_bass','u_mid','u_high','u_rms','u_centroid','u_kick',
         'u_flux','u_zcr','u_energy','u_time','u_aspect','u_resolution',
-        'u_bands03','u_bands47','u_bands89','u_scene'];
+        'u_bands03','u_bands47','u_bands89','u_scene',
+        'u_viewProj','u_camRight','u_camUp','u_camDist'];
     const uR = getU(gl, renderProg, uNames);
     const uP = getU(gl, postProg, uNames);
 
@@ -742,49 +837,72 @@ function getU(gl, prog, names) {
     const bandData = new Float32Array(COUNT);
     const sizeData = new Float32Array(COUNT);
     const brightData = new Float32Array(COUNT);
+    const heightData = new Float32Array(COUNT);
+
+    // 70% disk stars (spiral arms), 30% field stars (scattered everywhere)
+    const DISK_COUNT = Math.floor(COUNT * 0.7);
 
     for (let i = 0; i < COUNT; i++) {
-        // Accretion disk with spiral arms
-        const t = Math.sqrt(Math.random());
-        const r = 0.03 + t * 0.85;
-        const arms = 3;
-        const arm = Math.floor(Math.random() * arms);
-        const turns = 2.0;
-        const jitter = (Math.random() - 0.5) * 0.35 * (1.0 - t * 0.4);
-        const angle = (arm / arms) * Math.PI * 2 + t * turns * Math.PI * 2 + jitter;
+        let x, y, t, height;
 
-        const scatter = (1.0 - t) * 0.06 + 0.008;
-        const x = Math.cos(angle) * r + (Math.random() - 0.5) * scatter;
-        const y = Math.sin(angle) * r + (Math.random() - 0.5) * scatter;
+        if (i < DISK_COUNT) {
+            // --- DISK STARS: Spiral accretion disk ---
+            t = Math.sqrt(Math.random());
+            const r = 0.04 + t * 1.55;
+            const arms = 4;
+            const arm = Math.floor(Math.random() * arms);
+            const turns = 2.2;
+            const jitter = (Math.random() - 0.5) * 0.3 * (1.0 - t * 0.4);
+            const angle = (arm / arms) * Math.PI * 2 + t * turns * Math.PI * 2 + jitter;
+
+            const scatter = (1.0 - t) * 0.06 + 0.008;
+            x = Math.cos(angle) * r + (Math.random() - 0.5) * scatter;
+            y = Math.sin(angle) * r + (Math.random() - 0.5) * scatter;
+
+            // Thin disk — thicker near center
+            const thickness = (1.0 - t) * 0.1 + 0.005;
+            height = (Math.random() - 0.5) * thickness;
+        } else {
+            // --- FIELD STARS: Scattered in a sphere around the black hole ---
+            // These fill the background, giving depth and density
+            const phi = Math.acos(2 * Math.random() - 1); // uniform sphere
+            const theta = Math.random() * Math.PI * 2;
+            const r = 0.3 + Math.pow(Math.random(), 0.5) * 2.5; // bias toward outer
+            x = Math.sin(phi) * Math.cos(theta) * r;
+            y = Math.sin(phi) * Math.sin(theta) * r;
+            height = Math.cos(phi) * r * 0.4; // flatten vertically
+            t = Math.min(1.0, Math.sqrt(x * x + y * y) / 1.6);
+        }
 
         baseData[i * 2] = x;
         baseData[i * 2 + 1] = y;
 
         const len = Math.sqrt(x * x + y * y) || 0.001;
-        dirData[i * 2] = x / len + (Math.random() - 0.5) * 0.12;
-        dirData[i * 2 + 1] = y / len + (Math.random() - 0.5) * 0.12;
+        dirData[i * 2] = x / len + (Math.random() - 0.5) * 0.1;
+        dirData[i * 2 + 1] = y / len + (Math.random() - 0.5) * 0.1;
 
         orbitData[i] = t;
         seedData[i] = Math.random() * 6.2832;
         bandData[i] = Math.floor(Math.random() * 10);
 
-        // Size: power-law distribution — few bright giants, many small stars
-        // ~5% are large (4-8px), ~15% medium (2.5-4px), ~80% small (1-2.5px)
+        // Size: power-law — few giants, many small
         const sizeRoll = Math.random();
-        if (sizeRoll < 0.03) {
-            sizeData[i] = 5.0 + Math.random() * 4.0;  // rare giants
-        } else if (sizeRoll < 0.08) {
-            sizeData[i] = 3.5 + Math.random() * 2.0;   // large stars
-        } else if (sizeRoll < 0.25) {
-            sizeData[i] = 2.0 + Math.random() * 1.5;   // medium
+        if (sizeRoll < 0.02) {
+            sizeData[i] = 6.0 + Math.random() * 4.0;   // rare supergiants
+        } else if (sizeRoll < 0.06) {
+            sizeData[i] = 3.5 + Math.random() * 2.5;    // giants
+        } else if (sizeRoll < 0.20) {
+            sizeData[i] = 2.0 + Math.random() * 1.5;    // medium
         } else {
-            sizeData[i] = 0.8 + Math.random() * 1.2;   // small background stars
+            sizeData[i] = 0.6 + Math.random() * 1.4;    // small
         }
+        // Field stars are generally smaller/dimmer
+        if (i >= DISK_COUNT) sizeData[i] *= 0.5 + Math.random() * 0.3;
 
-        // Brightness: correlated with size but not 1:1
-        // Big stars are bright, small stars vary widely
-        const baseBright = sizeData[i] / 9.0; // 0.1 to 1.0
-        brightData[i] = Math.min(1.0, baseBright + Math.random() * 0.4);
+        const baseBright = sizeData[i] / 10.0;
+        brightData[i] = Math.min(1.0, baseBright + Math.random() * 0.35);
+
+        heightData[i] = height;
     }
 
     // --- Create buffers ---
@@ -803,6 +921,7 @@ function getU(gl, prog, names) {
     const bandBuf = createBuffer(bandData);
     const sizeBuf = createBuffer(sizeData);
     const brightBuf = createBuffer(brightData);
+    const heightBuf = createBuffer(heightData);
 
     // --- VAO ---
     const vao = gl.createVertexArray();
@@ -854,6 +973,12 @@ function getU(gl, prog, names) {
     gl.enableVertexAttribArray(7);
     gl.vertexAttribPointer(7, 1, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(7, 1);
+
+    // location 8: height / Y offset (per-instance)
+    gl.bindBuffer(gl.ARRAY_BUFFER, heightBuf);
+    gl.enableVertexAttribArray(8);
+    gl.vertexAttribPointer(8, 1, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(8, 1);
 
     gl.bindVertexArray(null);
 
@@ -928,6 +1053,142 @@ function getU(gl, prog, names) {
 
     function fmt(s) { if (!s || !isFinite(s)) return '0:00'; const m = Math.floor(s/60), sc = Math.floor(s%60); return m+':'+(sc<10?'0':'')+sc; }
 
+    // =============================================================
+    // CAMERA: Orbit controls (drag to rotate, scroll to zoom)
+    // =============================================================
+    const cam = {
+        theta: 0.0,         // horizontal angle (radians)
+        phi: 0.8,           // vertical angle (0 = top-down, PI/2 = side)
+        dist: 3.0,          // distance from center
+        target: [0, 0, 0],  // look-at point
+        // Computed each frame
+        pos: [0, 0, 0],
+        right: [1, 0, 0],
+        up: [0, 1, 0],
+        vpMatrix: new Float32Array(16)
+    };
+
+    // Mouse / touch orbit
+    let isDragging = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener('mousedown', (e) => {
+        if (e.target !== canvas) return;
+        isDragging = true; lastMX = e.clientX; lastMY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
+        lastMX = e.clientX; lastMY = e.clientY;
+        cam.theta -= dx * 0.003;
+        cam.phi = Math.max(0.15, Math.min(Math.PI - 0.15, cam.phi - dy * 0.003));
+    });
+    window.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'grab'; });
+    canvas.style.cursor = 'grab';
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        cam.dist = Math.max(1.0, Math.min(10.0, cam.dist * (1 + e.deltaY * 0.001)));
+    }, { passive: false });
+
+    // Touch support
+    let lastTouchDist = 0;
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            lastMX = e.touches[0].clientX; lastMY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+        }
+    });
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && isDragging) {
+            const dx = e.touches[0].clientX - lastMX, dy = e.touches[0].clientY - lastMY;
+            lastMX = e.touches[0].clientX; lastMY = e.touches[0].clientY;
+            cam.theta -= dx * 0.003;
+            cam.phi = Math.max(0.15, Math.min(Math.PI - 0.15, cam.phi - dy * 0.003));
+        } else if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const d = Math.sqrt(dx*dx + dy*dy);
+            cam.dist = Math.max(0.8, Math.min(12.0, cam.dist - (d - lastTouchDist) * 0.01));
+            lastTouchDist = d;
+        }
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => { isDragging = false; });
+
+    // --- Matrix math (minimal, no library) ---
+    function perspective(fov, aspect, near, far) {
+        const f = 1 / Math.tan(fov / 2);
+        const nf = 1 / (near - far);
+        return new Float32Array([
+            f/aspect, 0, 0, 0,
+            0, f, 0, 0,
+            0, 0, (far+near)*nf, -1,
+            0, 0, 2*far*near*nf, 0
+        ]);
+    }
+
+    function lookAt(eye, center, upVec) {
+        // Forward (z axis, pointing from target to eye)
+        let fx = eye[0]-center[0], fy = eye[1]-center[1], fz = eye[2]-center[2];
+        let fl = Math.sqrt(fx*fx+fy*fy+fz*fz) || 1;
+        fx/=fl; fy/=fl; fz/=fl;
+
+        // Right = up x forward
+        let rx = upVec[1]*fz - upVec[2]*fy;
+        let ry = upVec[2]*fx - upVec[0]*fz;
+        let rz = upVec[0]*fy - upVec[1]*fx;
+        let rl = Math.sqrt(rx*rx+ry*ry+rz*rz) || 1;
+        rx/=rl; ry/=rl; rz/=rl;
+
+        // True up = forward x right
+        const ux = fy*rz - fz*ry;
+        const uy = fz*rx - fx*rz;
+        const uz = fx*ry - fy*rx;
+
+        // Column-major view matrix
+        return {
+            view: new Float32Array([
+                rx, ux, fx, 0,
+                ry, uy, fy, 0,
+                rz, uz, fz, 0,
+                -(rx*eye[0]+ry*eye[1]+rz*eye[2]),
+                -(ux*eye[0]+uy*eye[1]+uz*eye[2]),
+                -(fx*eye[0]+fy*eye[1]+fz*eye[2]),
+                1
+            ]),
+            right: [rx, ry, rz],
+            up: [ux, uy, uz]
+        };
+    }
+
+    function mulMat4(a, b) {
+        const o = new Float32Array(16);
+        for (let i = 0; i < 4; i++)
+            for (let j = 0; j < 4; j++)
+                o[j*4+i] = a[i]*b[j*4]+a[4+i]*b[j*4+1]+a[8+i]*b[j*4+2]+a[12+i]*b[j*4+3];
+        return o;
+    }
+
+    function updateCamera() {
+        const sp = Math.sin(cam.phi), cp = Math.cos(cam.phi);
+        const st = Math.sin(cam.theta), ct = Math.cos(cam.theta);
+        cam.pos = [
+            cam.dist * sp * st + cam.target[0],
+            cam.dist * cp + cam.target[1],
+            cam.dist * sp * ct + cam.target[2]
+        ];
+        const proj = perspective(Math.PI / 3, aspect, 0.01, 50.0);
+        const la = lookAt(cam.pos, cam.target, [0, 1, 0]);
+        cam.vpMatrix = mulMat4(proj, la.view);
+        cam.right = la.right;
+        cam.up = la.up;
+    }
+
     // --- Set audio uniforms ---
     function setU(u, f, bands, t) {
         gl.uniform1f(u.u_bass, f.bass);
@@ -945,6 +1206,10 @@ function getU(gl, prog, names) {
         if (u.u_bands03 !== null) gl.uniform4f(u.u_bands03, bands[0], bands[1], bands[2], bands[3]);
         if (u.u_bands47 !== null) gl.uniform4f(u.u_bands47, bands[4], bands[5], bands[6], bands[7]);
         if (u.u_bands89 !== null) gl.uniform2f(u.u_bands89, bands[8], bands[9]);
+        if (u.u_viewProj !== null) gl.uniformMatrix4fv(u.u_viewProj, false, cam.vpMatrix);
+        if (u.u_camRight !== null) gl.uniform3fv(u.u_camRight, cam.right);
+        if (u.u_camUp !== null) gl.uniform3fv(u.u_camUp, cam.up);
+        if (u.u_camDist !== null) gl.uniform1f(u.u_camDist, cam.dist);
     }
 
     // --- Render loop ---
@@ -980,6 +1245,9 @@ function getU(gl, prog, names) {
             db.zcr.style.width = (f.zcr*100)+'%';
             db.energy.style.width = (f.energy*100)+'%';
         }
+
+        // Update camera matrix
+        updateCamera();
 
         // --- Render particles to FBO ---
         gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
