@@ -271,8 +271,10 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-lens" title="Auto"><label>Lens</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span><div class="auto-range" data-tw="tw-lens"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-waves" title="Auto"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span><div class="auto-range" data-tw="tw-waves"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
   <h3>Black Hole</h3>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-void" title="Auto"><label>Void</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span><div class="auto-range" data-tw="tw-void"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-ring" title="Auto"><label>Ring</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span><div class="auto-range" data-tw="tw-ring"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-shadow" title="Auto"><label>Shadow</label><input type="range" id="tw-shadow" min="20" max="300" value="100"><span class="val" id="tw-shadow-val">100</span><div class="auto-range" data-tw="tw-shadow"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="20" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-photon" title="Auto"><label>Photon</label><input type="range" id="tw-photon" min="0" max="300" value="100"><span class="val" id="tw-photon-val">100</span><div class="auto-range" data-tw="tw-photon"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-ring" title="Auto"><label>Accretion</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span><div class="auto-range" data-tw="tw-ring"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-doppler" title="Auto"><label>Doppler</label><input type="range" id="tw-doppler" min="0" max="300" value="100"><span class="val" id="tw-doppler-val">100</span><div class="auto-range" data-tw="tw-doppler"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-corona" title="Auto"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span><div class="auto-range" data-tw="tw-corona"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <div style="display:flex;gap:6px;margin-top:8px;justify-content:center">
     <button class="tw-btn" id="tw-save">SAVE</button>
@@ -663,7 +665,7 @@ uniform float u_hueHole;
 uniform float u_hueAll;
 uniform float u_satMul;
 uniform float u_twBloom, u_twTwist, u_twChroma, u_twLens, u_twWaves;
-uniform float u_twVoid, u_twRing, u_twCorona;
+uniform float u_twShadow, u_twPhoton, u_twRing, u_twCorona, u_twDoppler;
 uniform vec2 u_resolution;
 
 vec3 hueShift(vec3 c, float angle) {
@@ -762,78 +764,95 @@ void main() {
     bloom *= mix(vec3(1.0), spectralColor(u_centroid), 0.6);
     col += bloom * bloomStr;
 
-    // Zoom scale: all black hole features scale inversely with camera distance
-    // At default dist (3.0), zoomScale = 1.0. Closer = bigger, further = smaller.
     float zoomScale = 3.0 / max(u_camDist, 0.5);
-
-    // === ENERGY INTENSITY ===
     float energy = u_energy;
-    float dropHeat = u_kick * 0.5 + u_bass * 0.3 + energy * 0.2;
-    dropHeat = min(dropHeat, 1.0);
-
-    // === HORIZON COLOR: space palette temperature gradient ===
-    // Calm: deep violet/blue → building: magenta/purple → peak: cyan/white-hot
-    vec3 coldCol  = vec3(0.15, 0.05, 0.4);        // deep space violet
-    vec3 warmCol  = vec3(0.6, 0.1, 0.6);          // nebula purple
-    vec3 hotCol   = vec3(0.9, 0.15, 0.7);         // hot magenta
-    vec3 burnCol  = vec3(0.3, 0.5, 1.0);          // electric blue
-    vec3 peakCol  = vec3(0.7, 0.9, 1.0);          // white-cyan peak
-
-    vec3 holeColor;
-    if (dropHeat < 0.2) {
-        holeColor = mix(coldCol, warmCol, dropHeat * 5.0);
-    } else if (dropHeat < 0.4) {
-        holeColor = mix(warmCol, hotCol, (dropHeat - 0.2) * 5.0);
-    } else if (dropHeat < 0.65) {
-        holeColor = mix(hotCol, burnCol, (dropHeat - 0.4) * 4.0);
-    } else {
-        holeColor = mix(burnCol, peakCol, (dropHeat - 0.65) * 2.86);
-    }
-
-    // === SPACETIME DISTORTION: only on energy peaks ===
     float angle = atan(toCenter.y, toCenter.x);
 
-    // Distortion threshold: nothing happens below 0.5 energy, ramps up above
-    float peakIntensity = smoothstep(0.4, 0.85, energy) + u_kick * 0.8;
-    peakIntensity = min(peakIntensity, 1.0);
+    // =====================================================
+    // BLACK HOLE — Physically inspired rendering
+    // =====================================================
 
-    // When energy peaks, spacetime tears — asymmetric, violent distortion
-    float warp1 = sin(angle * 2.0 + u_time * 0.7 + u_bass * 6.0) * 0.4;
-    float warp2 = sin(angle * 3.0 - u_time * 1.3 + energy * 5.0) * 0.3;
-    float warp3 = sin(angle * 5.0 + u_time * 2.5) * 0.15;
-    // Bass-driven asymmetric bulge
-    float warp4 = sin(angle * 1.0 + u_time * 0.3) * u_bass * 0.6;
-    float shapeWarp = (warp1 + warp2 + warp3 + warp4) * peakIntensity;
+    // --- 1. BLACK HOLE SHADOW (Schwarzschild radius) ---
+    // The shadow is absolute darkness — nothing escapes
+    float shadowR = (0.035 + energy * 0.01 + u_bass * 0.005) * zoomScale * u_twShadow;
 
-    float warpedDist = dist + shapeWarp * 0.02 * zoomScale;
+    // --- 2. PHOTON SPHERE (1.5x shadow radius) ---
+    // Light orbits here — the razor-thin bright ring at the edge of no return
+    float photonR = shadowR * 1.5;
+    float photonDist = abs(dist - photonR);
+    float photonWidth = 0.003 * zoomScale;
+    // Ultra-thin ring, extremely bright
+    float photonRing = exp(-photonDist * photonDist / (photonWidth * photonWidth));
+    photonRing *= (0.6 + energy * 1.5 + u_kick * 1.0) * u_twPhoton;
 
-    // === EVENT HORIZON: swells and distorts on peaks ===
-    float ringR = (0.03 + u_rms * 0.012 + energy * 0.025 + u_kick * 0.035) * zoomScale;
-    float ringDist = abs(warpedDist - ringR);
-    float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
-    float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
-    col += holeColor * 2.5 * ring * u_twRing;
+    // Photon ring color: near-white with slight spectral tint
+    vec3 photonCol = mix(vec3(0.9, 0.92, 1.0), spectralColor(u_centroid), 0.2);
+    col += photonCol * photonRing;
 
-    // === SECONDARY RING: outer halo ===
-    float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
-    float outerDist2 = abs(warpedDist - outerR);
-    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
-    vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
-    col += outerCol * 0.6 * outerRing * u_twRing;
+    // --- 3. ACCRETION GLOW (the hot ring of infalling matter) ---
+    // Wider, softer glow just outside the photon sphere
+    float accR = photonR * 1.4 + energy * 0.01 * zoomScale;
+    float accDist = abs(dist - accR);
+    float accWidth = (0.015 + energy * 0.008) * zoomScale;
+    float accGlow = exp(-accDist * accDist / (accWidth * accWidth));
+    accGlow *= (0.3 + energy * 0.8 + u_kick * 0.5) * u_twRing;
 
-    // === ENERGY CORONA: when it really goes hard, light floods outward ===
-    float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
-    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8 * u_twCorona;
-    vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
+    // Accretion disk color: temperature gradient
+    vec3 accCold = vec3(0.15, 0.05, 0.4);   // outer edge: cool violet
+    vec3 accHot  = vec3(0.9, 0.7, 0.95);    // inner edge: white-hot
+    float accTemp = smoothstep(accR + accWidth * 2.0, accR - accWidth, dist);
+    vec3 accColor = mix(accCold, accHot, accTemp);
+    accColor = mix(accColor, spectralColor(u_centroid), 0.3);
+    col += accColor * accGlow;
+
+    // --- 4. DOPPLER BEAMING (approaching side brighter) ---
+    // The accretion disk rotates — one side is blueshifted (brighter),
+    // the other redshifted (dimmer). Creates asymmetric brightness.
+    float dopplerAngle = angle + u_time * 0.5; // disk rotation
+    float doppler = 0.5 + 0.5 * sin(dopplerAngle); // 0 to 1
+    float dopplerStrength = u_twDoppler * (0.3 + energy * 0.4);
+    // Approaching side gets brighter and bluer, receding gets dimmer and redder
+    float dopplerBoost = mix(1.0 - dopplerStrength * 0.4, 1.0 + dopplerStrength * 0.4, doppler);
+    vec3 dopplerTint = mix(vec3(1.0, 0.7, 0.5), vec3(0.7, 0.85, 1.0), doppler);
+    // Apply only in the accretion region
+    float accRegion = smoothstep(photonR * 2.5, photonR * 1.1, dist);
+    col *= mix(vec3(1.0), dopplerTint, accRegion * dopplerStrength * 0.3);
+    col *= mix(1.0, dopplerBoost, accRegion);
+
+    // --- 5. SECONDARY IMAGE (Einstein ring / lensed back-image) ---
+    // Light from behind the black hole bends around and creates a secondary ring
+    float einsteinR = shadowR * 2.6;
+    float einsteinDist = abs(dist - einsteinR);
+    float einsteinWidth = 0.008 * zoomScale;
+    float einsteinRing = exp(-einsteinDist * einsteinDist / (einsteinWidth * einsteinWidth));
+    einsteinRing *= (0.15 + energy * 0.3) * u_twRing * 0.5;
+    // Slightly chromatic — light gets spectrally separated
+    col.r += einsteinRing * 0.8;
+    col.g += einsteinRing * 0.9;
+    col.b += einsteinRing * 1.1;
+
+    // --- 6. FRAME DRAGGING (Kerr black hole spin) ---
+    // Spinning black hole drags spacetime — creates spiral pattern near horizon
+    float frameR = smoothstep(shadowR * 3.0, shadowR * 1.2, dist);
+    float frameDrag = sin(angle * 1.0 + dist * 40.0 / zoomScale - u_time * 1.5) * 0.5 + 0.5;
+    frameDrag *= frameR * 0.08 * (0.5 + energy * 0.5);
+    col += spectralColor(u_centroid) * frameDrag * u_twRing;
+
+    // --- 7. CORONA: energy-driven glow envelope ---
+    float coronaR = (shadowR * 3.0 + energy * 0.03 + u_kick * 0.02) * zoomScale;
+    float corona = smoothstep(coronaR, shadowR, dist);
+    corona *= corona; // squared falloff
+    corona *= (0.1 + energy * 0.3 + u_kick * 0.2) * u_twCorona;
+    vec3 coronaCol = mix(vec3(0.15, 0.05, 0.35), spectralColor(u_centroid), 0.4 + energy * 0.3);
     col += coronaCol * corona;
 
-    // === BLACK HOLE VOID: grows with energy ===
-    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale * u_twVoid;
-    float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
-    col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
+    // --- 8. THE SHADOW: absolute black void ---
+    // Hard edge with very thin softening — nothing survives here
+    float voidSoft = 0.004 * zoomScale;
+    col *= smoothstep(shadowR, shadowR + voidSoft, dist);
 
-    // Kick flash — tinted purple instead of white
-    col += vec3(0.3, 0.15, 0.5) * u_kick * 0.15;
+    // Kick flash — subtle
+    col += vec3(0.15, 0.08, 0.25) * u_kick * 0.08;
 
     // Vignette
     col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
@@ -1230,7 +1249,7 @@ function getU(gl, prog, names) {
         'u_twInfall','u_twSpiral','u_twTidal','u_twEccentric','u_orbitPhase',
         'u_twSize','u_twReact','u_twBright',
         'u_twBloom','u_twTwist','u_twChroma','u_twLens','u_twWaves',
-        'u_twVoid','u_twRing','u_twCorona'];
+        'u_twShadow','u_twPhoton','u_twRing','u_twDoppler','u_twCorona'];
     const uR = getU(gl, renderProg, uNames);
     const uP = getU(gl, postProg, uNames);
 
@@ -1536,14 +1555,14 @@ function getU(gl, prog, names) {
         gravity:1, orbit:1, bassPush:1, kick:1, infall:1, spiral:1, tidal:1, eccentric:1,
         size:1, react:1, bright:1,
         bloom:1, twist:1, chroma:1, lens:1, waves:1,
-        void:1, ring:1, corona:1
+        shadow:1, photon:1, ring:1, doppler:1, corona:1
     };
     const tweakMap = {
         'tw-gravity':'gravity', 'tw-orbit':'orbit', 'tw-bass-push':'bassPush', 'tw-kick':'kick',
         'tw-infall':'infall', 'tw-spiral':'spiral', 'tw-tidal':'tidal', 'tw-eccentric':'eccentric',
         'tw-size':'size', 'tw-react':'react', 'tw-bright':'bright',
         'tw-bloom':'bloom', 'tw-twist':'twist', 'tw-chroma':'chroma', 'tw-lens':'lens', 'tw-waves':'waves',
-        'tw-void':'void', 'tw-ring':'ring', 'tw-corona':'corona'
+        'tw-shadow':'shadow', 'tw-photon':'photon', 'tw-ring':'ring', 'tw-doppler':'doppler', 'tw-corona':'corona'
     };
     // Per-slider auto state
     const tweakAuto = {};
@@ -1616,8 +1635,10 @@ function getU(gl, prog, names) {
         'tw-waves':     f => Math.min(1, f.kick * 0.4 + f.snare * 0.3 + f.pulse * 0.2 + f.flux * 0.1),
 
         // BLACK HOLE
-        'tw-void':      f => Math.min(1, f.energy * 0.4 + f.drop * 0.3 + f.bass * 0.3),
-        'tw-ring':      f => Math.min(1, f.rms * 0.4 + f.kick * 0.3 + f.snare * 0.2 + f.energy * 0.1),
+        'tw-shadow':    f => Math.min(1, f.energy * 0.4 + f.bass * 0.3 + f.drop * 0.3),
+        'tw-photon':    f => Math.min(1, f.rms * 0.4 + f.kick * 0.3 + f.energy * 0.3),
+        'tw-ring':      f => Math.min(1, f.rms * 0.35 + f.kick * 0.25 + f.snare * 0.2 + f.energy * 0.2),
+        'tw-doppler':   f => Math.min(1, f.bass * 0.4 + f.energy * 0.3 + f.pulse * 0.3),
         'tw-corona':    f => Math.min(1, f.kick * 0.3 + f.drop * 0.3 + f.energy * 0.25 + f.melodic * 0.15),
     };
 
@@ -2136,8 +2157,10 @@ function getU(gl, prog, names) {
         if (u.u_twChroma !== null) gl.uniform1f(u.u_twChroma, tweaks.chroma);
         if (u.u_twLens !== null) gl.uniform1f(u.u_twLens, tweaks.lens);
         if (u.u_twWaves !== null) gl.uniform1f(u.u_twWaves, tweaks.waves);
-        if (u.u_twVoid !== null) gl.uniform1f(u.u_twVoid, tweaks.void);
+        if (u.u_twShadow !== null) gl.uniform1f(u.u_twShadow, tweaks.shadow);
+        if (u.u_twPhoton !== null) gl.uniform1f(u.u_twPhoton, tweaks.photon);
         if (u.u_twRing !== null) gl.uniform1f(u.u_twRing, tweaks.ring);
+        if (u.u_twDoppler !== null) gl.uniform1f(u.u_twDoppler, tweaks.doppler);
         if (u.u_twCorona !== null) gl.uniform1f(u.u_twCorona, tweaks.corona);
         if (u.u_hueStars !== null) gl.uniform1f(u.u_hueStars, colorSettings.hueAll + colorSettings.hueStars);
         if (u.u_hueHole !== null) gl.uniform1f(u.u_hueHole, colorSettings.hueHole);
