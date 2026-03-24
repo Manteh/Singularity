@@ -74,14 +74,15 @@ canvas { display: block; width: 100vw; height: 100vh; }
 
 /* ---- Shared slider style ---- */
 input[type=range] {
-  -webkit-appearance: none; appearance: none; height: 2px;
-  background: rgba(255,255,255,0.1); outline: none; border-radius: 1px; cursor: pointer;
+  -webkit-appearance: none; appearance: none; height: 3px;
+  background: rgba(255,255,255,0.08); outline: none; border-radius: 2px; cursor: pointer;
 }
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 8px; height: 8px; border-radius: 50%;
-  background: #666; cursor: pointer; transition: background 0.15s;
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: rgba(255,255,255,0.4); cursor: pointer; transition: all 0.15s;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
 }
-input[type=range]:hover::-webkit-slider-thumb { background: #aaa; }
+input[type=range]:hover::-webkit-slider-thumb { background: rgba(255,255,255,0.7); }
 input[type=range]:disabled { opacity: 0.3; cursor: default; }
 #seek-bar { flex: 1; }
 #seek-bar:hover::-webkit-slider-thumb { background: #f80; }
@@ -98,36 +99,33 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 /* ---- Panels (shared) ---- */
 .panel {
-  position: fixed; top: 40px; width: 280px; z-index: 50; display: none;
-  background: rgba(8,8,12,0.92); backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
-  padding: 14px 16px; font-size: 0.75rem;
+  position: fixed; top: 40px; width: 310px; z-index: 50; display: none;
+  background: rgba(6,6,10,0.94); backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.05); border-radius: 12px;
+  padding: 16px 18px; font-size: 0.8rem;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
 }
 .panel.visible { display: block; }
 .panel h3 {
-  color: rgba(255,255,255,0.4); font-size: 0.65rem; font-weight: 600;
-  margin: 12px 0 6px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); font-size: 0.6rem; font-weight: 600;
+  margin: 14px 0 4px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .panel h3:first-child { margin-top: 0; }
 
-/* ---- Settings panel ---- */
-#settings-panel { left: 12px; }
-
 .setting-row {
   display: flex; align-items: center; flex-wrap: wrap;
-  margin: 0; padding: 5px 0; gap: 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  margin: 0; padding: 6px 0; gap: 8px;
 }
-.setting-row:last-child { border-bottom: none; }
-.setting-row label { color: rgba(255,255,255,0.45); min-width: 50px; font-size: 0.7rem; }
-.setting-row input[type=range] { flex: 1; margin: 0 4px; min-width: 60px; }
+.setting-row label { color: rgba(255,255,255,0.5); min-width: 55px; font-size: 0.72rem; }
+.setting-row input[type=range] { flex: 1; margin: 0 4px; min-width: 70px; }
 .setting-row .val {
-  color: rgba(255,255,255,0.3); min-width: 26px; text-align: right;
+  color: rgba(255,255,255,0.3); min-width: 28px; text-align: right;
   font-size: 0.65rem; font-variant-numeric: tabular-nums;
 }
 .tw-btn {
-  background: none; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.35);
-  cursor: pointer; padding: 5px 14px; font-family: inherit; font-size: 0.6rem;
+  background: none; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.4);
+  cursor: pointer; padding: 6px 16px; font-family: inherit; font-size: 0.65rem;
   border-radius: 4px; letter-spacing: 0.08em; transition: all 0.15s;
 }
 .tw-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.6); }
@@ -147,7 +145,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 /* Auto checkbox */
 .auto-cb {
-  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
   border: 1.5px solid rgba(255,255,255,0.18); border-radius: 3px;
   background: transparent; cursor: pointer; margin: 0; flex-shrink: 0;
   transition: all 0.15s; position: relative;
@@ -157,7 +155,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   background: rgba(140,80,255,0.3); border-color: rgba(140,80,255,0.6);
 }
 .auto-cb:checked::after {
-  content: ''; position: absolute; top: 1px; left: 4px;
+  content: ''; position: absolute; top: 2px; left: 5px;
   width: 4px; height: 8px; border: solid rgba(140,80,255,0.9);
   border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
@@ -181,11 +179,11 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 .auto-range input[type=number]:focus { border-color: rgba(140,80,255,0.5); }
 .auto-range .ar-sep { color: rgba(255,255,255,0.15); font-size: 0.6rem; }
 
-/* Slider thumb colors */
-#hue-all::-webkit-slider-thumb { background: #888; }
-#hue-stars::-webkit-slider-thumb { background: #8a5cf5; }
-#hue-hole::-webkit-slider-thumb { background: #4a9eed; }
-#sat-all::-webkit-slider-thumb { background: #aaa; }
+/* Color slider thumb accents */
+#hue-all::-webkit-slider-thumb { background: rgba(200,200,255,0.5); }
+#hue-stars::-webkit-slider-thumb { background: rgba(140,90,255,0.6); }
+#hue-hole::-webkit-slider-thumb { background: rgba(80,160,240,0.6); }
+#sat-all::-webkit-slider-thumb { background: rgba(255,255,255,0.5); }
 
 /* ---- Debug panel ---- */
 #debug-overlay { right: 12px; }
@@ -236,21 +234,17 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 </div>
 
 <span id="fps">0 FPS</span>
-<button class="top-btn" id="tweak-toggle" style="right:205px">Tweak</button>
-<button class="top-btn" id="settings-toggle" style="right:155px">Colors</button>
+<button class="top-btn" id="tweak-toggle" style="right:155px">Settings</button>
 <button class="top-btn" id="debug-toggle" style="right:105px">Debug</button>
 <button class="top-btn" id="fullscreen-btn" style="right:50px">Fullscreen</button>
 <div id="error-msg"></div>
 
-<div class="panel" id="settings-panel">
+<div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
   <h3>Colors</h3>
   <div class="setting-row"><label>Global</label><input type="checkbox" class="auto-cb" id="auto-hue-all" title="Auto"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
   <div class="setting-row"><label>Hole</label><input type="checkbox" class="auto-cb" id="auto-hue-hole" title="Auto"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
   <div class="setting-row"><label>Saturate</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
-</div>
-
-<div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
   <h3>Physics</h3>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-gravity" title="Auto"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span><div class="auto-range" data-tw="tw-gravity"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span><div class="auto-range" data-tw="tw-orbit"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
@@ -1951,8 +1945,7 @@ function getU(gl, prog, names) {
     renderBuiltInPresets();
 
     // --- Color settings ---
-    const settingsPanel = document.getElementById('settings-panel');
-    document.getElementById('settings-toggle').addEventListener('click', () => settingsPanel.classList.toggle('visible'));
+    // Colors are now inside the tweak panel — no separate settings panel
 
     const colorSettings = { hueAll: 0, hueStars: 0, hueHole: 0, satMul: 1.0 };
 
