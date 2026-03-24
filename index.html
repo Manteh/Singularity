@@ -157,6 +157,18 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   width: 3px; height: 6px; border: solid rgba(140,80,255,0.9);
   border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
 }
+.auto-range {
+  display: none; align-items: center; gap: 2px; margin-left: auto;
+}
+.auto-range.visible { display: flex; }
+.auto-range input {
+  width: 30px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.4); font-size: 0.5rem; font-family: inherit;
+  padding: 1px 3px; border-radius: 2px; text-align: center; outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.auto-range input:focus { border-color: rgba(140,80,255,0.4); }
+.auto-range span { color: rgba(255,255,255,0.15); font-size: 0.45rem; }
 
 /* Slider thumb colors */
 #hue-all::-webkit-slider-thumb { background: #888; }
@@ -229,24 +241,24 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 <div class="panel" id="tweak-panel" style="left:12px;top:36px;width:210px;max-height:calc(100vh - 90px);overflow-y:auto">
   <h3>Physics</h3>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-gravity" title="Auto"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bass-push" title="Auto"><label>Bass</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-kick" title="Auto"><label>Kick</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-gravity" title="Auto"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span><div class="auto-range" data-tw="tw-gravity"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span><div class="auto-range" data-tw="tw-orbit"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bass-push" title="Auto"><label>Bass</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span><div class="auto-range" data-tw="tw-bass-push"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-kick" title="Auto"><label>Kick</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span><div class="auto-range" data-tw="tw-kick"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <h3>Stars</h3>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-size" title="Auto"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-react" title="Auto"><label>React</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bloom" title="Auto"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bright" title="Auto"><label>Bright</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-size" title="Auto"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span><div class="auto-range" data-tw="tw-size"><input type="number" class="ar-min" value="20" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-react" title="Auto"><label>React</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span><div class="auto-range" data-tw="tw-react"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bloom" title="Auto"><label>Bloom</label><input type="range" id="tw-bloom" min="0" max="300" value="100"><span class="val" id="tw-bloom-val">100</span><div class="auto-range" data-tw="tw-bloom"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bright" title="Auto"><label>Bright</label><input type="range" id="tw-bright" min="20" max="300" value="100"><span class="val" id="tw-bright-val">100</span><div class="auto-range" data-tw="tw-bright"><input type="number" class="ar-min" value="20" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <h3>Spacetime</h3>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-twist" title="Auto"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-chroma" title="Auto"><label>Chroma</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-lens" title="Auto"><label>Lens</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-waves" title="Auto"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-twist" title="Auto"><label>Twist</label><input type="range" id="tw-twist" min="0" max="400" value="100"><span class="val" id="tw-twist-val">100</span><div class="auto-range" data-tw="tw-twist"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-chroma" title="Auto"><label>Chroma</label><input type="range" id="tw-chroma" min="0" max="400" value="100"><span class="val" id="tw-chroma-val">100</span><div class="auto-range" data-tw="tw-chroma"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-lens" title="Auto"><label>Lens</label><input type="range" id="tw-lens" min="0" max="400" value="100"><span class="val" id="tw-lens-val">100</span><div class="auto-range" data-tw="tw-lens"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-waves" title="Auto"><label>Waves</label><input type="range" id="tw-waves" min="0" max="400" value="100"><span class="val" id="tw-waves-val">100</span><div class="auto-range" data-tw="tw-waves"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="400" min="0" max="400"></div></div>
   <h3>Black Hole</h3>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-void" title="Auto"><label>Void</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-ring" title="Auto"><label>Ring</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span></div>
-  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-corona" title="Auto"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-void" title="Auto"><label>Void</label><input type="range" id="tw-void" min="0" max="300" value="100"><span class="val" id="tw-void-val">100</span><div class="auto-range" data-tw="tw-void"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-ring" title="Auto"><label>Ring</label><input type="range" id="tw-ring" min="0" max="300" value="100"><span class="val" id="tw-ring-val">100</span><div class="auto-range" data-tw="tw-ring"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-corona" title="Auto"><label>Corona</label><input type="range" id="tw-corona" min="0" max="300" value="100"><span class="val" id="tw-corona-val">100</span><div class="auto-range" data-tw="tw-corona"><input type="number" class="ar-min" value="0" min="0" max="400"><span>-</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <div style="display:flex;gap:6px;margin-top:8px;justify-content:center">
     <button class="tw-btn" id="tw-save">SAVE</button>
     <button class="tw-btn" id="tw-load">LOAD</button>
@@ -1497,18 +1509,34 @@ function getU(gl, prog, names) {
         });
     }
 
-    // Wire up per-slider auto checkboxes
+    // Per-slider auto min/max ranges
+    const tweakRange = {};
+    document.querySelectorAll('.auto-range').forEach(el => {
+        const twId = el.dataset.tw;
+        const minInput = el.querySelector('.ar-min');
+        const maxInput = el.querySelector('.ar-max');
+        tweakRange[twId] = { min: parseFloat(minInput.value), max: parseFloat(maxInput.value) };
+        minInput.addEventListener('change', () => { tweakRange[twId].min = parseFloat(minInput.value) || 0; });
+        maxInput.addEventListener('change', () => { tweakRange[twId].max = parseFloat(maxInput.value) || 400; });
+    });
+
+    // Wire up per-slider auto checkboxes — show/hide range inputs
     document.querySelectorAll('.tw-auto').forEach(cb => {
         const twId = cb.dataset.tw;
+        const rangeEl = document.querySelector(`.auto-range[data-tw="${twId}"]`);
         cb.addEventListener('change', () => {
             tweakAuto[twId] = cb.checked;
             const slider = document.getElementById(twId);
             slider.disabled = cb.checked;
             slider.style.opacity = cb.checked ? '0.3' : '1';
+            if (rangeEl) rangeEl.classList.toggle('visible', cb.checked);
         });
     });
 
     function setTweak(id, val) {
+        // Clamp to user-defined min/max range
+        const r = tweakRange[id];
+        if (r) val = Math.max(r.min, Math.min(r.max, val));
         const key = tweakMap[id];
         tweaks[key] = val / 100;
         document.getElementById(id).value = Math.round(val);
@@ -1606,6 +1634,10 @@ function getU(gl, prog, names) {
         for (const [id, key] of Object.entries(tweakMap)) {
             s['tw:' + key] = tweaks[key];
             s['twa:' + id] = tweakAuto[id];
+            if (tweakRange[id]) {
+                s['twmin:' + id] = tweakRange[id].min;
+                s['twmax:' + id] = tweakRange[id].max;
+            }
         }
         for (const k in colorSettings) s['col:' + k] = colorSettings[k];
         ['auto-hue-all','auto-hue-stars','auto-hue-hole'].forEach(id => {
@@ -1626,6 +1658,18 @@ function getU(gl, prog, names) {
                 tweakAuto[id] = s['twa:' + id];
                 const cb = document.querySelector(`.tw-auto[data-tw="${id}"]`);
                 if (cb) { cb.checked = tweakAuto[id]; cb.dispatchEvent(new Event('change')); }
+            }
+            if (tweakRange[id]) {
+                if (('twmin:' + id) in s) {
+                    tweakRange[id].min = s['twmin:' + id];
+                    const el = document.querySelector(`.auto-range[data-tw="${id}"] .ar-min`);
+                    if (el) el.value = s['twmin:' + id];
+                }
+                if (('twmax:' + id) in s) {
+                    tweakRange[id].max = s['twmax:' + id];
+                    const el = document.querySelector(`.auto-range[data-tw="${id}"] .ar-max`);
+                    if (el) el.value = s['twmax:' + id];
+                }
             }
         }
         const colKeys = { hueAll: 'hue-all', hueStars: 'hue-stars', hueHole: 'hue-hole', satMul: 'sat-all' };
