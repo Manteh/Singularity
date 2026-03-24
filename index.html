@@ -137,6 +137,8 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   border-radius: 4px; margin: 2px; transition: all 0.15s;
 }
 .preset-btn:hover { border-color: rgba(140,80,255,0.5); color: rgba(140,80,255,0.9); }
+.builtin-preset { border-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.35); }
+.builtin-preset:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.7); }
 .preset-del {
   background: none; border: none; color: rgba(255,80,80,0.35); cursor: pointer;
   font-size: 0.7rem; padding: 0 3px; margin-left: 2px;
@@ -274,6 +276,8 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
     <button class="tw-btn" id="tw-reset">RESET</button>
   </div>
   <div id="tw-presets" style="margin-top:4px"></div>
+  <h3 style="margin-top:8px">Presets</h3>
+  <div id="tw-presets-builtin" style="line-height:1.8"></div>
 </div>
 
 <div class="panel" id="debug-overlay" style="right:12px">
@@ -1695,7 +1699,173 @@ function getU(gl, prog, names) {
             if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); }
         }
     });
+    // --- Built-in presets (named after nebulas/stars) ---
+    // Format: { 'tw:key': multiplier, 'col:key': value, 'cb:id': bool, 'twa:id': bool }
+    // tw values are stored as multipliers (1.0 = 100%)
+    const d2r = d => d * Math.PI / 180;
+    const builtInPresets = {
+        'Andromeda': {
+            'tw:gravity':1.5,'tw:orbit':0.8,'tw:bassPush':1.2,'tw:kick':1.0,
+            'tw:size':1.2,'tw:react':1.5,'tw:bloom':1.8,'tw:bright':1.3,
+            'tw:twist':0.6,'tw:chroma':0.5,'tw:lens':0.8,'tw:waves':0.6,
+            'tw:void':1.0,'tw:ring':1.4,'tw:corona':1.0,
+            'col:hueAll':d2r(220),'col:hueStars':d2r(30),'col:hueHole':d2r(200),'col:satMul':1.2
+        },
+        'Orion': {
+            'tw:gravity':1.8,'tw:orbit':0.5,'tw:bassPush':2.0,'tw:kick':2.0,
+            'tw:size':0.8,'tw:react':2.0,'tw:bloom':0.6,'tw:bright':1.5,
+            'tw:twist':2.0,'tw:chroma':1.5,'tw:lens':1.2,'tw:waves':2.5,
+            'tw:void':1.3,'tw:ring':2.0,'tw:corona':2.0,
+            'col:hueAll':d2r(0),'col:hueStars':d2r(340),'col:hueHole':d2r(15),'col:satMul':1.4
+        },
+        'Vega': {
+            'tw:gravity':0.5,'tw:orbit':1.5,'tw:bassPush':0.4,'tw:kick':0.5,
+            'tw:size':1.8,'tw:react':0.8,'tw:bloom':2.5,'tw:bright':1.6,
+            'tw:twist':0.3,'tw:chroma':0.2,'tw:lens':0.4,'tw:waves':0.3,
+            'tw:void':0.7,'tw:ring':2.0,'tw:corona':0.5,
+            'col:hueAll':d2r(180),'col:hueStars':d2r(60),'col:hueHole':d2r(190),'col:satMul':0.9
+        },
+        'Cygnus': {
+            'tw:gravity':2.0,'tw:orbit':0.3,'tw:bassPush':2.5,'tw:kick':2.5,
+            'tw:size':0.6,'tw:react':2.5,'tw:bloom':0.4,'tw:bright':2.0,
+            'tw:twist':3.0,'tw:chroma':2.5,'tw:lens':2.0,'tw:waves':3.0,
+            'tw:void':1.5,'tw:ring':2.5,'tw:corona':2.5,
+            'col:hueAll':d2r(280),'col:hueStars':d2r(300),'col:hueHole':d2r(260),'col:satMul':1.6
+        },
+        'Polaris': {
+            'tw:gravity':0.3,'tw:orbit':0.4,'tw:bassPush':0.2,'tw:kick':0.3,
+            'tw:size':2.5,'tw:react':0.4,'tw:bloom':3.0,'tw:bright':0.8,
+            'tw:twist':0.1,'tw:chroma':0.1,'tw:lens':0.2,'tw:waves':0.1,
+            'tw:void':0.5,'tw:ring':1.0,'tw:corona':0.3,
+            'col:hueAll':d2r(200),'col:hueStars':d2r(210),'col:hueHole':d2r(220),'col:satMul':0.6
+        },
+        'Nebula M42': {
+            'tw:gravity':1.0,'tw:orbit':1.2,'tw:bassPush':1.0,'tw:kick':0.8,
+            'tw:size':1.5,'tw:react':1.2,'tw:bloom':2.0,'tw:bright':1.1,
+            'tw:twist':0.8,'tw:chroma':1.0,'tw:lens':1.0,'tw:waves':0.8,
+            'tw:void':0.9,'tw:ring':1.5,'tw:corona':1.2,
+            'col:hueAll':d2r(150),'col:hueStars':d2r(120),'col:hueHole':d2r(80),'col:satMul':1.5,
+            'cb:auto-hue-all':true
+        },
+        'Sirius': {
+            'tw:gravity':0.8,'tw:orbit':1.0,'tw:bassPush':0.6,'tw:kick':1.5,
+            'tw:size':1.0,'tw:react':3.0,'tw:bloom':1.0,'tw:bright':2.5,
+            'tw:twist':0.5,'tw:chroma':2.0,'tw:lens':0.5,'tw:waves':1.5,
+            'tw:void':0.8,'tw:ring':1.0,'tw:corona':1.5,
+            'col:hueAll':d2r(210),'col:hueStars':d2r(0),'col:hueHole':d2r(240),'col:satMul':1.1
+        },
+        'Betelgeuse': {
+            'tw:gravity':2.0,'tw:orbit':0.6,'tw:bassPush':2.5,'tw:kick':1.8,
+            'tw:size':1.3,'tw:react':1.0,'tw:bloom':1.2,'tw:bright':1.0,
+            'tw:twist':1.5,'tw:chroma':0.8,'tw:lens':1.5,'tw:waves':1.0,
+            'tw:void':1.8,'tw:ring':1.8,'tw:corona':1.5,
+            'col:hueAll':d2r(20),'col:hueStars':d2r(10),'col:hueHole':d2r(5),'col:satMul':1.8
+        },
+        'Pulsar': {
+            'tw:gravity':1.2,'tw:orbit':2.0,'tw:bassPush':0.5,'tw:kick':3.0,
+            'tw:size':0.5,'tw:react':3.0,'tw:bloom':0.3,'tw:bright':3.0,
+            'tw:twist':0.8,'tw:chroma':3.0,'tw:lens':0.3,'tw:waves':3.5,
+            'tw:void':0.6,'tw:ring':3.0,'tw:corona':3.0,
+            'col:hueAll':d2r(180),'col:hueStars':d2r(180),'col:hueHole':d2r(160),'col:satMul':1.3
+        },
+        'Helix': {
+            'tw:gravity':0.6,'tw:orbit':1.8,'tw:bassPush':0.8,'tw:kick':0.6,
+            'tw:size':1.8,'tw:react':1.0,'tw:bloom':2.2,'tw:bright':1.0,
+            'tw:twist':2.5,'tw:chroma':0.4,'tw:lens':1.8,'tw:waves':0.5,
+            'tw:void':1.2,'tw:ring':1.2,'tw:corona':0.8,
+            'col:hueAll':d2r(120),'col:hueStars':d2r(90),'col:hueHole':d2r(140),'col:satMul':1.3,
+            'cb:auto-hue-stars':true
+        },
+        'Rigel': {
+            'tw:gravity':1.0,'tw:orbit':1.0,'tw:bassPush':1.5,'tw:kick':1.5,
+            'tw:size':1.0,'tw:react':1.5,'tw:bloom':1.0,'tw:bright':1.8,
+            'tw:twist':1.0,'tw:chroma':1.0,'tw:lens':1.0,'tw:waves':1.0,
+            'tw:void':1.0,'tw:ring':1.5,'tw:corona':1.0,
+            'col:hueAll':d2r(240),'col:hueStars':d2r(200),'col:hueHole':d2r(260),'col:satMul':1.0
+        },
+        'Supernova': {
+            'tw:gravity':0.2,'tw:orbit':0.3,'tw:bassPush':3.0,'tw:kick':3.0,
+            'tw:size':2.0,'tw:react':2.5,'tw:bloom':2.5,'tw:bright':2.5,
+            'tw:twist':2.0,'tw:chroma':3.0,'tw:lens':2.5,'tw:waves':3.0,
+            'tw:void':2.0,'tw:ring':2.5,'tw:corona':3.0,
+            'col:hueAll':d2r(30),'col:hueStars':d2r(350),'col:hueHole':d2r(40),'col:satMul':1.8,
+            'cb:auto-hue-hole':true
+        },
+        'Horsehead': {
+            'tw:gravity':1.6,'tw:orbit':0.7,'tw:bassPush':1.5,'tw:kick':1.2,
+            'tw:size':1.4,'tw:react':0.8,'tw:bloom':1.5,'tw:bright':0.7,
+            'tw:twist':1.8,'tw:chroma':0.6,'tw:lens':2.0,'tw:waves':0.8,
+            'tw:void':1.4,'tw:ring':1.0,'tw:corona':0.8,
+            'col:hueAll':d2r(300),'col:hueStars':d2r(320),'col:hueHole':d2r(280),'col:satMul':1.1
+        },
+        'Arcturus': {
+            'tw:gravity':1.2,'tw:orbit':1.3,'tw:bassPush':1.0,'tw:kick':1.0,
+            'tw:size':1.3,'tw:react':1.3,'tw:bloom':1.3,'tw:bright':1.3,
+            'tw:twist':1.3,'tw:chroma':1.3,'tw:lens':1.3,'tw:waves':1.3,
+            'tw:void':1.0,'tw:ring':1.3,'tw:corona':1.3,
+            'col:hueAll':d2r(45),'col:hueStars':d2r(40),'col:hueHole':d2r(30),'col:satMul':1.4
+        },
+        'Quasar': {
+            'tw:gravity':2.0,'tw:orbit':2.0,'tw:bassPush':1.0,'tw:kick':2.0,
+            'tw:size':0.7,'tw:react':2.0,'tw:bloom':0.5,'tw:bright':2.5,
+            'tw:twist':3.5,'tw:chroma':2.5,'tw:lens':3.0,'tw:waves':2.0,
+            'tw:void':2.0,'tw:ring':3.0,'tw:corona':2.5,
+            'col:hueAll':d2r(270),'col:hueStars':d2r(250),'col:hueHole':d2r(290),'col:satMul':1.7,
+            'cb:auto-hue-all':true,'cb:auto-hue-hole':true
+        },
+        'Cassiopeia': {
+            'tw:gravity':0.8,'tw:orbit':1.5,'tw:bassPush':0.8,'tw:kick':0.8,
+            'tw:size':2.0,'tw:react':1.0,'tw:bloom':2.5,'tw:bright':1.0,
+            'tw:twist':0.5,'tw:chroma':0.3,'tw:lens':0.6,'tw:waves':0.4,
+            'tw:void':0.8,'tw:ring':1.8,'tw:corona':0.6,
+            'col:hueAll':d2r(310),'col:hueStars':d2r(330),'col:hueHole':d2r(290),'col:satMul':1.0
+        },
+        'Crab Nebula': {
+            'tw:gravity':1.5,'tw:orbit':0.9,'tw:bassPush':1.8,'tw:kick':2.0,
+            'tw:size':1.0,'tw:react':2.0,'tw:bloom':1.0,'tw:bright':1.5,
+            'tw:twist':2.0,'tw:chroma':2.0,'tw:lens':1.5,'tw:waves':2.5,
+            'tw:void':1.0,'tw:ring':2.0,'tw:corona':2.0,
+            'col:hueAll':d2r(160),'col:hueStars':d2r(140),'col:hueHole':d2r(180),'col:satMul':1.5,
+            'cb:auto-hue-stars':true
+        },
+        'White Dwarf': {
+            'tw:gravity':0.4,'tw:orbit':0.6,'tw:bassPush':0.3,'tw:kick':0.4,
+            'tw:size':3.0,'tw:react':0.5,'tw:bloom':3.0,'tw:bright':0.6,
+            'tw:twist':0.2,'tw:chroma':0.1,'tw:lens':0.3,'tw:waves':0.2,
+            'tw:void':0.3,'tw:ring':0.5,'tw:corona':0.2,
+            'col:hueAll':d2r(0),'col:hueStars':d2r(0),'col:hueHole':d2r(0),'col:satMul':0.3
+        },
+        'Magnetar': {
+            'tw:gravity':1.0,'tw:orbit':1.5,'tw:bassPush':1.5,'tw:kick':2.5,
+            'tw:size':0.8,'tw:react':2.5,'tw:bloom':0.5,'tw:bright':2.0,
+            'tw:twist':1.5,'tw:chroma':3.5,'tw:lens':1.0,'tw:waves':3.0,
+            'tw:void':0.8,'tw:ring':2.5,'tw:corona':2.5,
+            'col:hueAll':d2r(60),'col:hueStars':d2r(180),'col:hueHole':d2r(300),'col:satMul':1.6,
+            'cb:auto-hue-all':true,'cb:auto-hue-stars':true,'cb:auto-hue-hole':true
+        },
+        'Eagle Nebula': {
+            'tw:gravity':1.2,'tw:orbit':1.0,'tw:bassPush':1.2,'tw:kick':1.0,
+            'tw:size':1.5,'tw:react':1.2,'tw:bloom':2.0,'tw:bright':1.2,
+            'tw:twist':1.0,'tw:chroma':0.8,'tw:lens':1.2,'tw:waves':0.8,
+            'tw:void':1.0,'tw:ring':1.5,'tw:corona':1.0,
+            'col:hueAll':d2r(80),'col:hueStars':d2r(100),'col:hueHole':d2r(60),'col:satMul':1.3
+        },
+    };
+
+    // Render built-in presets
+    function renderBuiltInPresets() {
+        const c = document.getElementById('tw-presets-builtin');
+        if (!c) return;
+        c.innerHTML = Object.keys(builtInPresets).map(n =>
+            `<button class="preset-btn builtin-preset" data-name="${n}">${n}</button>`
+        ).join('');
+        c.querySelectorAll('.builtin-preset').forEach(b => b.addEventListener('click', () => {
+            applySettings(builtInPresets[b.dataset.name]);
+        }));
+    }
+
     renderPresets();
+    renderBuiltInPresets();
 
     // --- Color settings ---
     const settingsPanel = document.getElementById('settings-panel');
