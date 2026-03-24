@@ -252,6 +252,25 @@ input[type=range]:disabled { opacity: 0.25; cursor: default; }
   max-width: 80vw; border-radius: var(--radius-sm); backdrop-filter: blur(12px);
 }
 
+/* ---- Tooltips ---- */
+.help-icon {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 600; color: var(--text-4);
+  border: 1px solid var(--border); cursor: help; position: relative;
+  transition: all 0.15s; margin-left: auto;
+}
+.help-icon:hover { color: var(--text-2); border-color: var(--accent-mid); }
+.help-icon .tooltip {
+  display: none; position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+  background: rgba(15,15,25,0.97); border: 1px solid var(--border-hover);
+  color: var(--text-2); font-size: 11px; font-weight: 400; padding: 8px 12px;
+  border-radius: var(--radius-sm); width: 200px; line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100;
+  pointer-events: none;
+}
+.help-icon:hover .tooltip { display: block; }
+
 /* ---- Scrollbar ---- */
 .panel::-webkit-scrollbar { width: 4px; }
 .panel::-webkit-scrollbar-track { background: transparent; }
@@ -2286,6 +2305,48 @@ function getU(gl, prog, names) {
 
     renderPresets();
     renderBuiltInPresets();
+
+    // --- Help tooltips ---
+    const tooltips = {
+        'tw-master': 'Master audio reactivity. At 0% the visualizer is completely static. At 100% full response to music.',
+        'hue-all': 'Shifts the hue of everything — stars, black hole, bloom. Check the box to let music drive it automatically.',
+        'hue-stars': 'Shifts only the star/particle colors independently from the black hole.',
+        'hue-hole': 'Shifts only the black hole rings and glow color.',
+        'sat-all': 'Color saturation. 0% = grayscale, 100% = normal, 200% = oversaturated neon.',
+        'tw-gravity': 'How strongly the black hole pulls stars inward. Higher = stars compress toward center.',
+        'tw-orbit': 'Orbital rotation speed. Multiplies the beat-driven orbit — stars spin faster or slower.',
+        'tw-bass-push': 'How much bass frequencies push stars outward. Creates the breathing expansion on bass hits.',
+        'tw-kick': 'Kick drum impact. Controls the sudden outward burst when a kick is detected.',
+        'tw-infall': 'Accretion infall rate. How fast stars spiral inward toward the black hole over time.',
+        'tw-spiral': 'Spiral arm tightness. Higher = more defined, tighter wound spiral structure.',
+        'tw-tidal': 'Tidal stretching. Mid frequencies create shearing streams along orbital paths.',
+        'tw-eccentric': 'Orbit eccentricity. Makes orbits elliptical instead of circular. Bass pumps the stretch.',
+        'tw-size': 'Base star size multiplier. Affects all 60k particles uniformly.',
+        'tw-react': 'Band reactivity. How much stars swell when their assigned frequency band is active.',
+        'tw-bloom': 'Post-processing bloom/glow intensity. Higher = more diffuse light bleed.',
+        'tw-bright': 'Overall star brightness multiplier. Affects color intensity of all particles.',
+        'tw-twist': 'Spacetime twist near the black hole. Bass swirls the fabric of space.',
+        'tw-chroma': 'Chromatic aberration. RGB channels split apart — creates prismatic light bending.',
+        'tw-lens': 'Gravitational lensing strength. How much the black hole bends light around it.',
+        'tw-waves': 'Gravitational wave ripples. Expanding distortion rings from drum transients.',
+        'tw-void': 'Black hole shadow size. The absolute darkness at the center.',
+        'tw-ring': 'Event horizon ring glow. The bright ring at the edge of the void.',
+        'tw-corona': 'Energy corona. The diffuse glow envelope that floods outward on peaks.',
+    };
+
+    // Inject help icons into setting rows
+    for (const [id, text] of Object.entries(tooltips)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const row = el.closest('.setting-row');
+        if (!row) continue;
+        const help = document.createElement('div');
+        help.className = 'help-icon';
+        help.innerHTML = `?<div class="tooltip">${text}</div>`;
+        // Insert after the val span (before auto-range if any)
+        const valSpan = row.querySelector('.val');
+        if (valSpan) valSpan.after(help);
+    }
 
     // --- Color settings ---
     // Colors are now inside the tweak panel — no separate settings panel
