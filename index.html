@@ -1765,6 +1765,12 @@ function getU(gl, prog, names) {
                 port.style.background = '';
                 const slider = document.getElementById(targetId);
                 if (slider) { slider.disabled = false; slider.style.opacity = '1'; }
+                // Hide range (unless auto checkbox is still on)
+                const cb = document.querySelector(`.tw-auto[data-tw="${targetId}"]`);
+                if (cb && !cb.checked) {
+                    const rangeEl = document.querySelector(`.auto-range[data-tw="${targetId}"]`);
+                    if (rangeEl) rangeEl.classList.remove('visible');
+                }
             }
         });
         port.addEventListener('mouseup', (e) => {
@@ -1784,6 +1790,9 @@ function getU(gl, prog, names) {
             // Disable slider — wire drives it
             const slider = document.getElementById(targetId);
             if (slider) { slider.disabled = true; slider.style.opacity = '0.3'; }
+            // Show min/max range inputs for the wire
+            const rangeEl = document.querySelector(`.auto-range[data-tw="${targetId}"]`);
+            if (rangeEl) rangeEl.classList.add('visible');
 
             endDrag();
         });
@@ -1804,6 +1813,12 @@ function getU(gl, prog, names) {
         for (const id in wires) {
             const slider = document.getElementById(id);
             if (slider) { slider.disabled = false; slider.style.opacity = '1'; }
+            // Hide range unless auto is on
+            const cb = document.querySelector(`.tw-auto[data-tw="${id}"]`);
+            if (cb && !cb.checked) {
+                const rangeEl = document.querySelector(`.auto-range[data-tw="${id}"]`);
+                if (rangeEl) rangeEl.classList.remove('visible');
+            }
             delete wires[id];
         }
         document.querySelectorAll('.setting-port').forEach(p => {
