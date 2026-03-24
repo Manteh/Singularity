@@ -560,15 +560,40 @@ void main() {
     repulse += mBass * 0.04 * h5 * u_twBassPush;
     p += radDir * repulse;
 
-    // --- ORBIT: Beat-driven phase (speeds up on beats, decelerates between) ---
-    // u_orbitPhase is accumulated on CPU based on audio energy
-    float keplerFactor = 1.0 + (1.0 - a_orbit) * 2.0; // inner = 3x faster
-    float orbitAngle = u_orbitPhase * keplerFactor * u_twOrbit + seed * 6.28;
+    // --- ORBIT: Per-particle Keplerian with energy-driven momentum ---
+    // Each star has its own base orbital speed (Kepler: v ∝ 1/√r)
+    // Inner stars orbit much faster than outer stars — not rigid rotation
+    float orbitRadius = max(length(p), 0.01);
+    float keplerSpeed = 0.8 / sqrt(orbitRadius + 0.05); // Kepler law
 
-    // --- ECCENTRICITY: Elliptical orbits (not perfect circles) ---
-    // Each star has its own eccentricity direction
+    // Energy pumps angular momentum — like injecting energy into the system
+    // When energy is high, stars speed up. When it drops, they coast and slow.
+    float energyBoost = mEnergy * 1.5 + mBass * 0.8;
+
+    // Per-particle momentum variation — not all stars respond equally
+    float myMomentum = 0.5 + h4 * 0.5; // 0.5-1.0
+
+    // Beat-driven velocity: u_orbitPhase accumulates with audio on CPU
+    // But each star uses it differently based on its kepler speed and momentum
+    float myOrbitSpeed = keplerSpeed * myMomentum * u_twOrbit;
+
+    // The actual orbit angle: base phase + accumulated beat phase + energy-driven speed
+    // Stars at different radii naturally separate (differential rotation)
+    float orbitAngle = u_orbitPhase * myOrbitSpeed
+                     + t * 0.02 * myOrbitSpeed  // gentle base rotation even without audio
+                     + seed * 6.28;              // random starting angle
+
+    // --- DRAG: Stars lose angular momentum over distance ---
+    // Outer stars feel more drag — they slow down first when energy drops
+    float drag = 1.0 - a_orbit * 0.3 * (1.0 - mEnergy); // outer stars slow more when quiet
+
+    orbitAngle *= drag;
+
+    // --- ECCENTRICITY: Elliptical orbits (pumped by beats) ---
     float eccAngle = h2 * 6.28;
     float ecc = 0.15 * u_twEccentric * (0.5 + h5 * 0.5);
+    // Eccentricity increases with energy — orbits stretch on beats
+    ecc *= (0.5 + mEnergy * 0.5 + mKick * 0.3);
     float eccFactor = 1.0 + ecc * cos(orbitAngle * 2.0 + eccAngle);
     p *= eccFactor;
 
@@ -576,10 +601,10 @@ void main() {
     float cs = cos(orbitAngle), sn = sin(orbitAngle);
     p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
 
-    // --- SPIRAL ARMS: Tighten/loosen the spiral structure ---
-    // Higher spiral = more defined arm structure, wraps tighter
+    // --- SPIRAL ARMS: Structure tightens with energy ---
     float spiralAngle = a_orbit * 6.28 * u_twSpiral * 0.5;
-    float sCS = cos(spiralAngle * 0.1), sSN = sin(spiralAngle * 0.1);
+    float spiralMod = spiralAngle * (0.08 + mEnergy * 0.04);
+    float sCS = cos(spiralMod), sSN = sin(spiralMod);
     p = vec2(p.x * sCS - p.y * sSN, p.x * sSN + p.y * sCS);
 
     // --- TIDAL FORCES: Stretching along orbital direction ---
@@ -2612,14 +2637,22 @@ function getU(gl, prog, names) {
         updateWires();
         updateAudioPanel();
 
-        // Beat-driven orbit: accelerates on beats, decelerates between
-        // Energy difference drives the acceleration (sound change = orbit change)
+        // Beat-driven orbit: energy injects angular momentum, friction drains it
         const f = audio.features;
-        const beatAccel = f.kick * 0.8 + f.bass * 0.3 + f.energy * 0.15;
-        const targetVel = 0.02 + beatAccel * 0.15;  // base slow rotation + beat boost
-        // Fast attack, slow decay — orbit snaps to speed on beat, slowly coasts down
-        orbitVelocity += (targetVel - orbitVelocity) * (targetVel > orbitVelocity ? 0.5 : 0.03);
-        orbitPhase += orbitVelocity * dt * 60; // normalize to ~60fps
+
+        // Energy injection: kicks and bass add angular momentum
+        const injection = f.kick * 0.12 + f.bass * 0.04 + f.energy * 0.02;
+        orbitVelocity += injection;
+
+        // Friction: velocity decays slowly — stars coast when music stops
+        // Higher energy = less friction (system stays excited)
+        const friction = 0.992 - f.energy * 0.008; // 0.984 at full energy, 0.992 at silence
+        orbitVelocity *= friction;
+
+        // Clamp to prevent runaway
+        orbitVelocity = Math.min(orbitVelocity, 0.5);
+
+        orbitPhase += orbitVelocity * dt * 60;
 
         if (audioEl?.duration) {
             seekBar.value = (audioEl.currentTime / audioEl.duration) * 1000;
