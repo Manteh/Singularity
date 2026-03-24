@@ -185,6 +185,46 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 #hue-hole::-webkit-slider-thumb { background: rgba(80,160,240,0.6); }
 #sat-all::-webkit-slider-thumb { background: rgba(255,255,255,0.5); }
 
+/* ---- Audio patch panel ---- */
+#audio-panel {
+  left: 340px; width: 220px;
+}
+.audio-row {
+  display: flex; align-items: center; padding: 5px 0; gap: 8px;
+}
+.audio-row .a-label { color: rgba(255,255,255,0.5); min-width: 52px; font-size: 0.7rem; }
+.audio-row .a-bar {
+  flex: 1; height: 6px; background: rgba(255,255,255,0.06);
+  border-radius: 3px; overflow: hidden; position: relative;
+}
+.audio-row .a-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px;
+  transition: width 0.04s;
+}
+.audio-port {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid;
+  cursor: grab; flex-shrink: 0; position: relative; transition: transform 0.1s;
+}
+.audio-port:hover { transform: scale(1.3); }
+.audio-port.dragging { cursor: grabbing; transform: scale(1.4); }
+
+/* Setting input ports */
+.setting-port {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15); background: transparent;
+  cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+  margin-right: 2px;
+}
+.setting-port:hover { border-color: rgba(255,255,255,0.5); transform: scale(1.2); }
+.setting-port.connected {
+  border-color: rgba(140,80,255,0.6); background: rgba(140,80,255,0.3);
+}
+
+/* Wire canvas overlay */
+#wire-canvas {
+  position: fixed; inset: 0; z-index: 49; pointer-events: none;
+}
+
 /* ---- Debug panel ---- */
 #debug-overlay { right: 12px; }
 .debug-bar { display: flex; align-items: center; margin: 0; padding: 4px 0; }
@@ -234,10 +274,33 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 </div>
 
 <span id="fps">0 FPS</span>
-<button class="top-btn" id="tweak-toggle" style="right:155px">Settings</button>
+<button class="top-btn" id="tweak-toggle" style="right:195px">Settings</button>
+<button class="top-btn" id="patch-toggle" style="right:145px">Patch</button>
 <button class="top-btn" id="debug-toggle" style="right:105px">Debug</button>
 <button class="top-btn" id="fullscreen-btn" style="right:50px">Fullscreen</button>
 <div id="error-msg"></div>
+<canvas id="wire-canvas"></canvas>
+
+<div class="panel" id="audio-panel">
+  <h3>Audio Sources</h3>
+  <div class="audio-row"><span class="a-label">Bass</span><div class="a-bar"><div class="a-fill" id="ap-bass" style="background:rgba(255,80,40,0.8)"></div></div><div class="audio-port" data-src="bass" style="border-color:#f54"></div></div>
+  <div class="audio-row"><span class="a-label">Mid</span><div class="a-bar"><div class="a-fill" id="ap-mid" style="background:rgba(255,180,40,0.8)"></div></div><div class="audio-port" data-src="mid" style="border-color:#fb4"></div></div>
+  <div class="audio-row"><span class="a-label">High</span><div class="a-bar"><div class="a-fill" id="ap-high" style="background:rgba(40,180,255,0.8)"></div></div><div class="audio-port" data-src="high" style="border-color:#4bf"></div></div>
+  <div class="audio-row"><span class="a-label">RMS</span><div class="a-bar"><div class="a-fill" id="ap-rms" style="background:rgba(220,220,255,0.6)"></div></div><div class="audio-port" data-src="rms" style="border-color:#ddf"></div></div>
+  <div class="audio-row"><span class="a-label">Centroid</span><div class="a-bar"><div class="a-fill" id="ap-centroid" style="background:rgba(180,60,255,0.7)"></div></div><div class="audio-port" data-src="centroid" style="border-color:#b4f"></div></div>
+  <div class="audio-row"><span class="a-label">Kick</span><div class="a-bar"><div class="a-fill" id="ap-kick" style="background:rgba(255,40,60,0.8)"></div></div><div class="audio-port" data-src="kick" style="border-color:#f34"></div></div>
+  <div class="audio-row"><span class="a-label">SubBass</span><div class="a-bar"><div class="a-fill" id="ap-subBass" style="background:rgba(255,50,20,0.7)"></div></div><div class="audio-port" data-src="subBass" style="border-color:#f32"></div></div>
+  <div class="audio-row"><span class="a-label">Snare</span><div class="a-bar"><div class="a-fill" id="ap-snare" style="background:rgba(255,200,60,0.7)"></div></div><div class="audio-port" data-src="snare" style="border-color:#fc4"></div></div>
+  <div class="audio-row"><span class="a-label">HiHat</span><div class="a-bar"><div class="a-fill" id="ap-hihat" style="background:rgba(100,220,255,0.7)"></div></div><div class="audio-port" data-src="hihat" style="border-color:#6df"></div></div>
+  <div class="audio-row"><span class="a-label">Flux</span><div class="a-bar"><div class="a-fill" id="ap-flux" style="background:rgba(40,255,220,0.6)"></div></div><div class="audio-port" data-src="flux" style="border-color:#4fd"></div></div>
+  <div class="audio-row"><span class="a-label">Energy</span><div class="a-bar"><div class="a-fill" id="ap-energy" style="background:rgba(255,160,40,0.7)"></div></div><div class="audio-port" data-src="energy" style="border-color:#fa4"></div></div>
+  <div class="audio-row"><span class="a-label">Drop</span><div class="a-bar"><div class="a-fill" id="ap-drop" style="background:rgba(255,60,200,0.7)"></div></div><div class="audio-port" data-src="drop" style="border-color:#f4c"></div></div>
+  <div class="audio-row"><span class="a-label">Pulse</span><div class="a-bar"><div class="a-fill" id="ap-pulse" style="background:rgba(120,255,80,0.6)"></div></div><div class="audio-port" data-src="pulse" style="border-color:#8f5"></div></div>
+  <div class="audio-row"><span class="a-label">Melodic</span><div class="a-bar"><div class="a-fill" id="ap-melodic" style="background:rgba(200,140,255,0.6)"></div></div><div class="audio-port" data-src="melodic" style="border-color:#c8f"></div></div>
+  <div style="margin-top:8px;text-align:center">
+    <button class="tw-btn" id="clear-wires">CLEAR WIRES</button>
+  </div>
+</div>
 
 <div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
   <h3>Colors</h3>
@@ -1570,6 +1633,186 @@ function getU(gl, prog, names) {
     const tweakPanel = document.getElementById('tweak-panel');
     document.getElementById('tweak-toggle').addEventListener('click', () => tweakPanel.classList.toggle('visible'));
 
+    // --- Audio Patch Panel ---
+    const audioPanel = document.getElementById('audio-panel');
+    document.getElementById('patch-toggle').addEventListener('click', () => {
+        audioPanel.classList.toggle('visible');
+        // Also show settings when patching
+        if (audioPanel.classList.contains('visible') && !tweakPanel.classList.contains('visible')) {
+            tweakPanel.classList.add('visible');
+        }
+    });
+
+    // Wire canvas
+    const wireCanvas = document.getElementById('wire-canvas');
+    const wireCtx = wireCanvas.getContext('2d');
+    function resizeWireCanvas() {
+        wireCanvas.width = window.innerWidth * devicePixelRatio;
+        wireCanvas.height = window.innerHeight * devicePixelRatio;
+        wireCanvas.style.width = window.innerWidth + 'px';
+        wireCanvas.style.height = window.innerHeight + 'px';
+        wireCtx.scale(devicePixelRatio, devicePixelRatio);
+    }
+    resizeWireCanvas();
+    window.addEventListener('resize', resizeWireCanvas);
+
+    // Inject setting-port dots into each tweak row
+    document.querySelectorAll('.tw-auto').forEach(cb => {
+        const twId = cb.dataset.tw;
+        const port = document.createElement('div');
+        port.className = 'setting-port';
+        port.dataset.target = twId;
+        port.title = 'Drop audio source here';
+        cb.parentElement.insertBefore(port, cb);
+    });
+
+    // Wire connections: { targetId: { src: 'bass', color: '#f54' } }
+    const wires = {};
+
+    // Port colors
+    const srcColors = {};
+    document.querySelectorAll('.audio-port').forEach(p => {
+        srcColors[p.dataset.src] = p.style.borderColor;
+    });
+
+    // Drag state
+    let dragSrc = null, dragColor = '', dragStartEl = null;
+    let mouseX = 0, mouseY = 0, isDraggingWire = false;
+
+    // Start drag from audio port
+    document.querySelectorAll('.audio-port').forEach(port => {
+        port.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            dragSrc = port.dataset.src;
+            dragColor = port.style.borderColor;
+            dragStartEl = port;
+            isDraggingWire = true;
+            port.classList.add('dragging');
+        });
+    });
+
+    // Track mouse
+    window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+    });
+
+    // Drop on setting port
+    document.querySelectorAll('.setting-port').forEach(port => {
+        port.addEventListener('mouseup', (e) => {
+            if (!isDraggingWire || !dragSrc) return;
+            const targetId = port.dataset.target;
+
+            // Create connection
+            wires[targetId] = { src: dragSrc, color: dragColor };
+            port.classList.add('connected');
+            port.style.borderColor = dragColor;
+            port.style.background = dragColor.replace(')', ',0.3)').replace('rgb', 'rgba');
+
+            // Enable auto for this slider
+            tweakAuto[targetId] = true;
+            const cb = document.querySelector(`.tw-auto[data-tw="${targetId}"]`);
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+
+            endDrag();
+        });
+    });
+
+    // Cancel drag
+    window.addEventListener('mouseup', () => { if (isDraggingWire) endDrag(); });
+
+    function endDrag() {
+        isDraggingWire = false;
+        dragSrc = null;
+        if (dragStartEl) dragStartEl.classList.remove('dragging');
+        dragStartEl = null;
+    }
+
+    // Clear all wires
+    document.getElementById('clear-wires').addEventListener('click', () => {
+        for (const id in wires) delete wires[id];
+        document.querySelectorAll('.setting-port').forEach(p => {
+            p.classList.remove('connected');
+            p.style.borderColor = '';
+            p.style.background = '';
+        });
+    });
+
+    // Get center of element
+    function elCenter(el) {
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+
+    // Draw wires each frame
+    function drawWires() {
+        wireCtx.clearRect(0, 0, wireCanvas.width / devicePixelRatio, wireCanvas.height / devicePixelRatio);
+
+        // Draw active drag wire
+        if (isDraggingWire && dragStartEl) {
+            const start = elCenter(dragStartEl);
+            wireCtx.beginPath();
+            wireCtx.moveTo(start.x, start.y);
+            // Bezier curve
+            const dx = mouseX - start.x;
+            wireCtx.bezierCurveTo(start.x + dx * 0.5, start.y, mouseX - dx * 0.5, mouseY, mouseX, mouseY);
+            wireCtx.strokeStyle = dragColor;
+            wireCtx.lineWidth = 2;
+            wireCtx.globalAlpha = 0.6;
+            wireCtx.stroke();
+            wireCtx.globalAlpha = 1;
+        }
+
+        // Draw established wires
+        for (const [targetId, wire] of Object.entries(wires)) {
+            const srcEl = document.querySelector(`.audio-port[data-src="${wire.src}"]`);
+            const tgtEl = document.querySelector(`.setting-port[data-target="${targetId}"]`);
+            if (!srcEl || !tgtEl) continue;
+
+            const start = elCenter(srcEl);
+            const end = elCenter(tgtEl);
+            const dx = end.x - start.x;
+
+            wireCtx.beginPath();
+            wireCtx.moveTo(start.x, start.y);
+            wireCtx.bezierCurveTo(start.x + dx * 0.4, start.y, end.x - dx * 0.4, end.y, end.x, end.y);
+            wireCtx.strokeStyle = wire.color;
+            wireCtx.lineWidth = 1.5;
+            wireCtx.globalAlpha = 0.4;
+            wireCtx.stroke();
+            wireCtx.globalAlpha = 1;
+
+            // Glow
+            wireCtx.lineWidth = 4;
+            wireCtx.globalAlpha = 0.08;
+            wireCtx.stroke();
+            wireCtx.globalAlpha = 1;
+        }
+    }
+
+    // Update wired settings each frame (called from render loop)
+    function updateWires() {
+        const f = audio.features;
+        for (const [targetId, wire] of Object.entries(wires)) {
+            const val = f[wire.src] || 0;
+            setTweak(targetId, Math.min(1, val));
+        }
+        drawWires();
+    }
+
+    // Update audio panel bars
+    const apBars = {};
+    document.querySelectorAll('[id^="ap-"]').forEach(el => {
+        apBars[el.id.replace('ap-', '')] = el;
+    });
+    function updateAudioPanel() {
+        const f = audio.features;
+        for (const [key, el] of Object.entries(apBars)) {
+            const v = Math.min(1, f[key] || 0);
+            el.style.width = (v * 100) + '%';
+        }
+    }
+
     const tweaks = {
         gravity:1, orbit:1, bassPush:1, kick:1, infall:1, spiral:1, tidal:1, eccentric:1,
         size:1, react:1, bright:1,
@@ -2204,6 +2447,8 @@ function getU(gl, prog, names) {
         audio.update(dt);
         updateAutoColor();
         updateAutoTweaks();
+        updateWires();
+        updateAudioPanel();
 
         // Beat-driven orbit: accelerates on beats, decelerates between
         // Energy difference drives the acceleration (sound change = orbit change)
