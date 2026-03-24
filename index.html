@@ -449,6 +449,8 @@ uniform float u_twMaster; // master audio reactivity (0=static, 1=normal)
 out vec4 v_color;
 out vec2 v_uv;
 out float v_coreSharp;
+out float v_starType;  // 0-1: determines star rendering style
+out float v_activity;  // how active this star is right now
 
 float hash(float n) { return fract(sin(n) * 43758.5453); }
 
@@ -729,6 +731,10 @@ void main() {
     col = hueShift(col, u_hueStars);
     col = satAdjust(col, u_satMul);
 
+    // Star type based on seed — determines rendering style
+    v_starType = h7;
+    v_activity = bVal;
+
     v_color = vec4(col, min(alpha, 1.0));
 }
 `;
@@ -738,27 +744,111 @@ precision mediump float;
 in vec4 v_color;
 in vec2 v_uv;
 in float v_coreSharp;
+in float v_starType;
+in float v_activity;
 out vec4 fragColor;
 
 void main() {
     float d = length(v_uv);
-
-    // Sharp core that responds to v_coreSharp
-    float core = exp(-d * d * v_coreSharp * 6.0);
-    // Soft halo — the glow around each star
-    float halo = exp(-d * d * 1.2) * 0.3;
-    float shape = core + halo;
-
-    // 4-point diffraction spikes — visible on bright stars
     float angle = atan(v_uv.y, v_uv.x);
-    float spike = pow(abs(cos(angle * 2.0)), 40.0) * exp(-d * 2.5) * 0.12 * v_color.a;
+    float type = v_starType;
 
-    vec3 col = v_color.rgb * (shape + spike);
-    // Hot white core
-    col += vec3(0.2, 0.15, 0.3) * core * core * v_color.a;
+    vec3 col;
+    float alpha;
 
-    float alpha = v_color.a * (shape + spike * 0.4);
-    fragColor = vec4(col, alpha);
+    if (type < 0.25) {
+        // TYPE 1: Sharp pinpoint — tiny brilliant core, minimal halo
+        // These are the crisp, diamond-like stars
+        float core = exp(-d * d * v_coreSharp * 12.0);
+        float halo = exp(-d * d * 3.0) * 0.15;
+
+        // 6-point diffraction spikes (hex pattern)
+        float spike = pow(abs(cos(angle * 3.0)), 50.0) * exp(-d * 3.0) * 0.2;
+        spike += pow(abs(sin(angle * 3.0 + 0.5)), 50.0) * exp(-d * 3.5) * 0.1;
+
+        float shape = core + halo + spike * v_color.a;
+        col = v_color.rgb * shape;
+        col += vec3(0.3, 0.25, 0.4) * core * core * v_color.a;
+        alpha = v_color.a * shape;
+
+    } else if (type < 0.5) {
+        // TYPE 2: Cross flare — cinematic anamorphic look
+        // Horizontal and vertical streaks
+        float core = exp(-d * d * v_coreSharp * 8.0);
+        float halo = exp(-d * d * 1.5) * 0.2;
+
+        // Anamorphic horizontal streak
+        float hStreak = exp(-v_uv.y * v_uv.y * 80.0) * exp(-abs(v_uv.x) * 2.0) * 0.25;
+        // Thin vertical spike
+        float vSpike = exp(-v_uv.x * v_uv.x * 120.0) * exp(-abs(v_uv.y) * 3.0) * 0.12;
+
+        float shape = core + halo + (hStreak + vSpike) * v_color.a;
+        col = v_color.rgb * shape;
+        // Streak gets slightly cooler color at edges
+        col += vec3(0.15, 0.2, 0.35) * hStreak * v_color.a;
+        col += vec3(0.25, 0.15, 0.3) * core * core * v_color.a;
+        alpha = v_color.a * shape;
+
+    } else if (type < 0.72) {
+        // TYPE 3: Soft nebular glow — large, diffuse, dreamy
+        // These are the background atmosphere stars
+        float core = exp(-d * d * v_coreSharp * 4.0);
+        float halo = exp(-d * d * 0.8) * 0.35;
+
+        // Soft ring at mid-distance
+        float ringD = abs(d - 0.4);
+        float ring = exp(-ringD * ringD * 30.0) * 0.08 * v_activity;
+
+        float shape = core + halo + ring;
+        col = v_color.rgb * shape;
+        // Warmer core
+        col += vec3(0.15, 0.08, 0.2) * core * v_color.a;
+        alpha = v_color.a * shape;
+
+    } else if (type < 0.88) {
+        // TYPE 4: Pulsating variable — sharp core with pulsing ring
+        float core = exp(-d * d * v_coreSharp * 10.0);
+        float halo = exp(-d * d * 2.0) * 0.2;
+
+        // Pulsing ring driven by band activity
+        float ringR = 0.25 + v_activity * 0.2;
+        float ringD = abs(d - ringR);
+        float ring = exp(-ringD * ringD * 60.0) * (0.1 + v_activity * 0.2);
+
+        // 4-point spikes
+        float spike = pow(abs(cos(angle * 2.0)), 35.0) * exp(-d * 2.5) * 0.15 * v_color.a;
+
+        float shape = core + halo + ring + spike;
+        col = v_color.rgb * shape;
+        // Ring gets a color shift
+        col += v_color.rgb * vec3(1.2, 0.9, 1.3) * ring * 0.5;
+        col += vec3(0.2, 0.15, 0.3) * core * core * v_color.a;
+        alpha = v_color.a * shape;
+
+    } else {
+        // TYPE 5: Rare supergiant — complex structure with multiple rings
+        float core = exp(-d * d * v_coreSharp * 6.0);
+        float halo = exp(-d * d * 1.0) * 0.3;
+
+        // Double ring
+        float ring1D = abs(d - 0.3);
+        float ring1 = exp(-ring1D * ring1D * 50.0) * 0.12;
+        float ring2D = abs(d - 0.55);
+        float ring2 = exp(-ring2D * ring2D * 40.0) * 0.06;
+
+        // 8-point starburst
+        float spike8 = pow(abs(cos(angle * 4.0)), 30.0) * exp(-d * 2.0) * 0.1 * v_color.a;
+
+        float shape = core + halo + ring1 + ring2 + spike8;
+        col = v_color.rgb * shape;
+        // Inner ring slightly different hue
+        col += v_color.rgb * vec3(0.8, 1.1, 1.3) * ring1 * 0.4;
+        col += v_color.rgb * vec3(1.3, 0.9, 0.8) * ring2 * 0.3;
+        col += vec3(0.25, 0.2, 0.35) * core * core * v_color.a;
+        alpha = v_color.a * shape;
+    }
+
+    fragColor = vec4(max(col, 0.0), alpha);
 }
 `;
 
