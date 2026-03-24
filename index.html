@@ -344,6 +344,7 @@ input[type=range]:disabled { opacity: 0.25; cursor: default; }
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
   <div class="setting-row"><label>Hole</label><input type="checkbox" class="auto-cb" id="auto-hue-hole" title="Auto"><input type="range" id="hue-hole" min="0" max="360" value="0"><span class="val" id="hue-hole-val">0</span></div>
   <div class="setting-row"><label>Saturate</label><input type="range" id="sat-all" min="0" max="200" value="100" style="margin-left:18px"><span class="val" id="sat-all-val">100</span></div>
+  <div class="setting-row"><label>True Color</label><input type="checkbox" class="auto-cb" id="true-color-cb" title="Show each star's natural frequency color"><span class="val" style="color:var(--text-3);font-size:10px">Per-star band colors</span></div>
   <h3>Physics</h3>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-gravity" title="Auto"><label>Gravity</label><input type="range" id="tw-gravity" min="0" max="200" value="100"><span class="val" id="tw-gravity-val">100</span><div class="auto-range" data-tw="tw-gravity"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span><div class="auto-range" data-tw="tw-orbit"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
@@ -438,6 +439,7 @@ uniform vec3 u_camRight;
 uniform vec3 u_camUp;
 uniform float u_hueStars;
 uniform float u_satMul;
+uniform float u_trueColor; // 1.0 = show per-star band colors, 0.0 = use spectral centroid
 // Tweak multipliers (1.0 = default)
 uniform float u_twGravity, u_twOrbit, u_twBassPush, u_twKick;
 uniform float u_twSize, u_twReact, u_twBright;
@@ -670,30 +672,36 @@ void main() {
     // intensity based on what the music is doing
     // =============================================
 
-    // Base color from spectral centroid (overall music tone)
+    // === COLOR ===
+    vec3 bC = bandColor(band);
     vec3 baseCol = spectralColor(mCentroid);
 
-    // Band color — each star has its own frequency identity
-    vec3 bC = bandColor(band);
+    // True color: each star keeps its own band color
+    // Normal: blend between spectral centroid and band color based on activity
+    float bandMix = u_trueColor > 0.5
+        ? 0.6 + bVal * 0.4  // true color: always strong band color, activity boosts
+        : bVal * 0.7 * (0.4 + h7 * 0.6); // normal: centroid-based, band on activity
 
-    // When this star's band is active, it shifts toward its band color
-    float bandActivity = bVal * 0.7 * (0.4 + h7 * 0.6);
-    vec3 col = mix(baseCol, bC, bandActivity);
+    vec3 col = mix(baseCol, bC, bandMix);
 
-    // Bass makes stars warmer (shifts toward magenta/red)
-    vec3 bassWarm = vec3(0.9, 0.2, 0.5);
-    col = mix(col, bassWarm, mBass * 0.25 * (0.5 + h5 * 0.5));
+    // Stellar temperature tint based on star class (per-particle)
+    // Bright stars = hotter = bluer, dim stars = cooler = redder
+    vec3 hotTint = vec3(0.7, 0.8, 1.0);
+    vec3 coolTint = vec3(1.0, 0.7, 0.5);
+    col *= mix(coolTint, hotTint, a_bright);
 
-    // High frequencies make bright stars flash white (shimmer)
-    float shimmerRate = 3.0 + h1 * 5.0;
-    float shimmer = mHigh * a_bright * (0.5 + 0.5 * sin(myTime3 * shimmerRate));
-    col = mix(col, vec3(1.0), shimmer * 0.5);
+    // Bass: warm shift
+    col = mix(col, vec3(0.9, 0.2, 0.5), mBass * 0.2 * (0.5 + h5 * 0.5));
 
-    // Near center = hotter, more saturated
-    col = mix(col, col * 2.0 + vec3(0.25, 0.1, 0.45), nearCenter * 0.6);
+    // High shimmer: bright stars flash with a blue-white sparkle
+    float shimmer = mHigh * a_bright * (0.5 + 0.5 * sin(myTime3 * (3.0 + h1 * 5.0)));
+    col = mix(col, vec3(0.8, 0.9, 1.0), shimmer * 0.4);
 
-    // Kick flash: momentary white-hot burst
-    col = mix(col, vec3(1.0, 0.9, 0.95), mKick * 0.3 * (0.3 + h4 * 0.7));
+    // Near center: intensify, shift toward hot violet
+    col = mix(col, col * 1.8 + vec3(0.2, 0.08, 0.4), nearCenter * 0.5);
+
+    // Kick: brief flash toward star's own color amplified (not white)
+    col = mix(col, col * 2.0 + vec3(0.15, 0.1, 0.2), mKick * 0.25 * (0.3 + h4 * 0.7));
 
     // =============================================
     // BRIGHTNESS & ALPHA: Loudness = visibility
@@ -725,7 +733,7 @@ void main() {
     // Core sharpness: driven by energy and brightness
     // High energy = sharper, more defined stars
     // Low energy = softer, dreamier
-    v_coreSharp = 1.5 + a_bright * 3.0 + u_energy * 2.0 + nearCenter * 2.0;
+    v_coreSharp = 1.5 + a_bright * 3.0 + mEnergy * 2.0 + nearCenter * 2.0;
 
     // Apply hue shift and saturation
     col = hueShift(col, u_hueStars);
@@ -750,104 +758,50 @@ out vec4 fragColor;
 
 void main() {
     float d = length(v_uv);
+    if (d > 1.0) discard; // early exit for pixels outside quad — saves GPU
+
+    float d2 = d * d;
     float angle = atan(v_uv.y, v_uv.x);
+
+    // Shared: tight core (all star types)
+    float core = exp(-d2 * v_coreSharp * 8.0);
+
+    // Per-type features computed branchlessly via step/mix
     float type = v_starType;
 
-    vec3 col;
-    float alpha;
+    // --- Spikes ---
+    // Blend between 4-point (low type), 6-point (mid), anamorphic (high)
+    float spike4 = pow(abs(cos(angle * 2.0)), 40.0);
+    float spike6 = pow(abs(cos(angle * 3.0)), 45.0);
+    float streak = exp(-v_uv.y * v_uv.y * 100.0) * exp(-abs(v_uv.x) * 2.5);
+    float spikeBlend = mix(spike4, spike6, smoothstep(0.2, 0.5, type));
+    spikeBlend = mix(spikeBlend, streak, smoothstep(0.5, 0.8, type));
+    float spike = spikeBlend * exp(-d * 3.0) * 0.18 * v_color.a;
 
-    if (type < 0.25) {
-        // TYPE 1: Sharp pinpoint — tiny brilliant core, minimal halo
-        // These are the crisp, diamond-like stars
-        float core = exp(-d * d * v_coreSharp * 12.0);
-        float halo = exp(-d * d * 3.0) * 0.15;
+    // --- Halo ---
+    // Sharp stars: tight halo. Nebular: wide soft halo
+    float haloWidth = mix(2.5, 0.8, smoothstep(0.0, 0.7, type));
+    float haloStr = mix(0.15, 0.3, smoothstep(0.3, 0.7, type));
+    float halo = exp(-d2 * haloWidth) * haloStr;
 
-        // 6-point diffraction spikes (hex pattern)
-        float spike = pow(abs(cos(angle * 3.0)), 50.0) * exp(-d * 3.0) * 0.2;
-        spike += pow(abs(sin(angle * 3.0 + 0.5)), 50.0) * exp(-d * 3.5) * 0.1;
+    // --- Ring (only on some types) ---
+    float ringR = 0.3 + v_activity * 0.15;
+    float ringD = abs(d - ringR);
+    float ring = exp(-ringD * ringD * 50.0) * v_activity * 0.15;
+    ring *= smoothstep(0.6, 0.85, type); // only visible on higher type stars
 
-        float shape = core + halo + spike * v_color.a;
-        col = v_color.rgb * shape;
-        col += vec3(0.3, 0.25, 0.4) * core * core * v_color.a;
-        alpha = v_color.a * shape;
+    // --- Combine ---
+    float shape = core + halo + spike + ring;
 
-    } else if (type < 0.5) {
-        // TYPE 2: Cross flare — cinematic anamorphic look
-        // Horizontal and vertical streaks
-        float core = exp(-d * d * v_coreSharp * 8.0);
-        float halo = exp(-d * d * 1.5) * 0.2;
+    vec3 col = v_color.rgb * shape;
 
-        // Anamorphic horizontal streak
-        float hStreak = exp(-v_uv.y * v_uv.y * 80.0) * exp(-abs(v_uv.x) * 2.0) * 0.25;
-        // Thin vertical spike
-        float vSpike = exp(-v_uv.x * v_uv.x * 120.0) * exp(-abs(v_uv.y) * 3.0) * 0.12;
+    // Hot core: slightly brighter/whiter center
+    col += vec3(0.15, 0.12, 0.25) * core * core * v_color.a;
 
-        float shape = core + halo + (hStreak + vSpike) * v_color.a;
-        col = v_color.rgb * shape;
-        // Streak gets slightly cooler color at edges
-        col += vec3(0.15, 0.2, 0.35) * hStreak * v_color.a;
-        col += vec3(0.25, 0.15, 0.3) * core * core * v_color.a;
-        alpha = v_color.a * shape;
+    // Ring color shift (subtle)
+    col += v_color.rgb * vec3(1.1, 0.9, 1.2) * ring * 0.3;
 
-    } else if (type < 0.72) {
-        // TYPE 3: Soft nebular glow — large, diffuse, dreamy
-        // These are the background atmosphere stars
-        float core = exp(-d * d * v_coreSharp * 4.0);
-        float halo = exp(-d * d * 0.8) * 0.35;
-
-        // Soft ring at mid-distance
-        float ringD = abs(d - 0.4);
-        float ring = exp(-ringD * ringD * 30.0) * 0.08 * v_activity;
-
-        float shape = core + halo + ring;
-        col = v_color.rgb * shape;
-        // Warmer core
-        col += vec3(0.15, 0.08, 0.2) * core * v_color.a;
-        alpha = v_color.a * shape;
-
-    } else if (type < 0.88) {
-        // TYPE 4: Pulsating variable — sharp core with pulsing ring
-        float core = exp(-d * d * v_coreSharp * 10.0);
-        float halo = exp(-d * d * 2.0) * 0.2;
-
-        // Pulsing ring driven by band activity
-        float ringR = 0.25 + v_activity * 0.2;
-        float ringD = abs(d - ringR);
-        float ring = exp(-ringD * ringD * 60.0) * (0.1 + v_activity * 0.2);
-
-        // 4-point spikes
-        float spike = pow(abs(cos(angle * 2.0)), 35.0) * exp(-d * 2.5) * 0.15 * v_color.a;
-
-        float shape = core + halo + ring + spike;
-        col = v_color.rgb * shape;
-        // Ring gets a color shift
-        col += v_color.rgb * vec3(1.2, 0.9, 1.3) * ring * 0.5;
-        col += vec3(0.2, 0.15, 0.3) * core * core * v_color.a;
-        alpha = v_color.a * shape;
-
-    } else {
-        // TYPE 5: Rare supergiant — complex structure with multiple rings
-        float core = exp(-d * d * v_coreSharp * 6.0);
-        float halo = exp(-d * d * 1.0) * 0.3;
-
-        // Double ring
-        float ring1D = abs(d - 0.3);
-        float ring1 = exp(-ring1D * ring1D * 50.0) * 0.12;
-        float ring2D = abs(d - 0.55);
-        float ring2 = exp(-ring2D * ring2D * 40.0) * 0.06;
-
-        // 8-point starburst
-        float spike8 = pow(abs(cos(angle * 4.0)), 30.0) * exp(-d * 2.0) * 0.1 * v_color.a;
-
-        float shape = core + halo + ring1 + ring2 + spike8;
-        col = v_color.rgb * shape;
-        // Inner ring slightly different hue
-        col += v_color.rgb * vec3(0.8, 1.1, 1.3) * ring1 * 0.4;
-        col += v_color.rgb * vec3(1.3, 0.9, 0.8) * ring2 * 0.3;
-        col += vec3(0.25, 0.2, 0.35) * core * core * v_color.a;
-        alpha = v_color.a * shape;
-    }
-
+    float alpha = v_color.a * shape;
     fragColor = vec4(max(col, 0.0), alpha);
 }
 `;
@@ -1490,7 +1444,7 @@ function getU(gl, prog, names) {
         'u_hueStars','u_hueHole','u_hueAll','u_satMul',
         'u_twGravity','u_twOrbit','u_twBassPush','u_twKick',
         'u_twInfall','u_twSpiral','u_twTidal','u_twEccentric','u_orbitPhase',
-        'u_twMaster','u_twSize','u_twReact','u_twBright',
+        'u_trueColor','u_twMaster','u_twSize','u_twReact','u_twBright',
         'u_twBloom','u_twTwist','u_twChroma','u_twLens','u_twWaves',
         'u_twVoid','u_twRing','u_twCorona'];
     const uR = getU(gl, renderProg, uNames);
@@ -2038,6 +1992,10 @@ function getU(gl, prog, names) {
     }
 
     let masterReact = 1.0;
+    let trueColorMode = false;
+    document.getElementById('true-color-cb').addEventListener('change', (e) => {
+        trueColorMode = e.target.checked;
+    });
     const masterSlider = document.getElementById('tw-master');
     const masterVal = document.getElementById('tw-master-val');
     masterSlider.addEventListener('input', () => {
@@ -2428,6 +2386,7 @@ function getU(gl, prog, names) {
         'hue-stars': 'Shifts only the star/particle colors independently from the black hole.',
         'hue-hole': 'Shifts only the black hole rings and glow color.',
         'sat-all': 'Color saturation. 0% = grayscale, 100% = normal, 200% = oversaturated neon.',
+        'true-color-cb': 'Show each star in its natural frequency band color. Bass stars glow red, mid stars green/teal, high stars blue/violet. Creates a rainbow spectrum across the disk.',
         'tw-gravity': 'How strongly the black hole pulls stars inward. Higher = stars compress toward center.',
         'tw-orbit': 'Orbital rotation speed. Multiplies the beat-driven orbit — stars spin faster or slower.',
         'tw-bass-push': 'How much bass frequencies push stars outward. Creates the breathing expansion on bass hits.',
@@ -2676,6 +2635,7 @@ function getU(gl, prog, names) {
         if (u.u_camDist !== null) gl.uniform1f(u.u_camDist, cam.dist);
         // Tweaks
         if (u.u_twMaster !== null) gl.uniform1f(u.u_twMaster, masterReact);
+        if (u.u_trueColor !== null) gl.uniform1f(u.u_trueColor, trueColorMode ? 1.0 : 0.0);
         if (u.u_twGravity !== null) gl.uniform1f(u.u_twGravity, tweaks.gravity);
         if (u.u_twOrbit !== null) gl.uniform1f(u.u_twOrbit, tweaks.orbit);
         if (u.u_twBassPush !== null) gl.uniform1f(u.u_twBassPush, tweaks.bassPush);
