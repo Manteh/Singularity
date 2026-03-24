@@ -313,6 +313,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 <div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
   <div class="panel-header"><h3>Settings</h3></div>
+  <div class="setting-row" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><label style="font-weight:600;color:rgba(255,255,255,0.6)">Master</label><input type="range" id="tw-master" min="0" max="100" value="100"><span class="val" id="tw-master-val">100</span></div>
   <h3>Colors</h3>
   <div class="setting-row"><label>Global</label><input type="checkbox" class="auto-cb" id="auto-hue-all" title="Auto"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
@@ -413,11 +414,9 @@ uniform float u_satMul;
 uniform float u_twGravity, u_twOrbit, u_twBassPush, u_twKick;
 uniform float u_twSize, u_twReact, u_twBright;
 // New physics tweaks
-uniform float u_twInfall;    // how fast stars spiral inward
-uniform float u_twSpiral;    // spiral arm tightness
-uniform float u_twTidal;     // tidal stretching strength
-uniform float u_twEccentric; // orbit eccentricity (elliptical)
-uniform float u_orbitPhase;  // CPU-accumulated beat-driven orbit phase
+uniform float u_twInfall, u_twSpiral, u_twTidal, u_twEccentric;
+uniform float u_orbitPhase;
+uniform float u_twMaster; // master audio reactivity (0=static, 1=normal)
 
 out vec4 v_color;
 out vec2 v_uv;
@@ -481,7 +480,17 @@ void main() {
     float seed = a_seed;
     float t = u_time;
     int band = int(a_band);
-    float bVal = getBand(band);
+    float bVal = getBand(band) * u_twMaster;
+
+    // Scale all audio by master — when 0, everything is static
+    float mBass = u_bass * u_twMaster;
+    float mMid = u_mid * u_twMaster;
+    float mHigh = u_high * u_twMaster;
+    float mRms = u_rms * u_twMaster;
+    float mKick = u_kick * u_twMaster;
+    float mEnergy = u_energy * u_twMaster;
+    float mFlux = u_flux * u_twMaster;
+    float mCentroid = mix(0.5, u_centroid, u_twMaster); // 0.5 = neutral when off
 
     // Per-particle identity hashes
     float h1 = hash(seed * 1.1), h2 = hash(seed * 2.2), h3 = hash(seed * 3.3);
@@ -502,7 +511,7 @@ void main() {
     // --- INFALL: Stars slowly spiral inward, pulled by gravity ---
     // Energy drives infall rate — high energy = matter sucked in faster
     // Each star has its own infall phase based on seed
-    float infallRate = (0.01 + u_energy * 0.04 + u_bass * 0.02) * u_twInfall;
+    float infallRate = (0.01 + mEnergy * 0.04 + mBass * 0.02) * u_twInfall;
     float infallPhase = fract(t * infallRate * (0.5 + h3 * 0.5) + h1);
     // Stars that "reach" the center respawn at the outer edge (via fract)
     float infallRadius = mix(0.03, dist0 * 1.2, 1.0 - infallPhase);
@@ -511,7 +520,7 @@ void main() {
     p = mix(a_base, normalize(a_base) * infallRadius, u_twInfall * 0.3);
 
     // --- GRAVITY: Inverse-distance pull toward center ---
-    float gravityStrength = (0.02 + u_energy * 0.06 + u_bass * 0.03) * u_twGravity;
+    float gravityStrength = (0.02 + mEnergy * 0.06 + mBass * 0.03) * u_twGravity;
     float gDist = length(p);
     float pull = gravityStrength / (gDist + 0.12);
     float inertia = 0.4 + h4 * 0.6;
@@ -519,8 +528,8 @@ void main() {
 
     // --- REPULSION: Beats push outward against gravity ---
     vec2 radDir = length(p) > 0.001 ? normalize(p) : a_dir;
-    float repulse = u_kick * 0.15 * (0.3 + h4 * 0.7) * u_twKick;
-    repulse += u_bass * 0.04 * h5 * u_twBassPush;
+    float repulse = mKick * 0.15 * (0.3 + h4 * 0.7) * u_twKick;
+    repulse += mBass * 0.04 * h5 * u_twBassPush;
     p += radDir * repulse;
 
     // --- ORBIT: Beat-driven phase (speeds up on beats, decelerates between) ---
@@ -547,7 +556,7 @@ void main() {
 
     // --- TIDAL FORCES: Stretching along orbital direction ---
     vec2 tangent = vec2(-radDir.y, radDir.x);
-    float tidalStretch = u_mid * 0.015 * u_twTidal + 0.002;
+    float tidalStretch = mMid * 0.015 * u_twTidal + 0.002 * u_twTidal;
     float wavePhase = a_orbit * 5.0 + seed * 1.5;
     p += tangent * sin(wavePhase + t * 0.35) * tidalStretch;
     // Tidal compression perpendicular — squeeze toward orbital plane
@@ -558,13 +567,13 @@ void main() {
     p += radDir * bandDisplace * h6;
 
     // --- ENERGY CONTRACTION: High energy compresses the disk ---
-    p *= 1.0 + (1.0 - u_energy) * 0.08;
+    p *= 1.0 + (1.0 - mEnergy) * 0.08 * u_twMaster;
 
     // --- FLUX: Spacetime ripple ---
-    p += radDir * sin(a_orbit * 6.0 - t * 0.5) * u_flux * 0.008;
+    p += radDir * sin(a_orbit * 6.0 - t * 0.5) * mFlux * 0.008;
 
     // 3D position: XZ = disk, Y = height
-    float yOff = a_height * (1.0 + u_kick * 0.6 + u_energy * 0.2);
+    float yOff = a_height * (1.0 + mKick * 0.6 + mEnergy * 0.2);
     vec3 pos3 = vec3(p.x, yOff, p.y);
     float pDist = length(p);
     float nearCenter = smoothstep(0.6, 0.03, pDist);
@@ -585,13 +594,13 @@ void main() {
     float bandSwell = 1.0 + bVal * bVal * 4.0 * u_twReact;
 
     // Kick: sudden size burst, per-particle reactivity
-    float kickBurst = 1.0 + u_kick * 3.0 * (0.3 + h4 * 0.7) * u_twKick;
+    float kickBurst = 1.0 + mKick * 3.0 * (0.3 + h4 * 0.7) * u_twKick;
 
     // RMS: overall loudness makes everything bigger
-    float loudnessScale = 1.0 + u_rms * 1.2 * u_twReact;
+    float loudnessScale = 1.0 + mRms * 1.2 * u_twReact;
 
     // Energy: high energy = stars swell toward center
-    float energySwell = 1.0 + u_energy * 0.8 * nearCenter;
+    float energySwell = 1.0 + mEnergy * 0.8 * nearCenter;
 
     float sz = a_size * u_twSize * pulse * bandSwell * kickBurst * loudnessScale * energySwell;
     sz = max(sz, 0.4);
@@ -607,30 +616,29 @@ void main() {
     // =============================================
 
     // Base color from spectral centroid (overall music tone)
-    vec3 baseCol = spectralColor(u_centroid);
+    vec3 baseCol = spectralColor(mCentroid);
 
     // Band color — each star has its own frequency identity
     vec3 bC = bandColor(band);
 
     // When this star's band is active, it shifts toward its band color
-    // When quiet, it falls back to the ambient spectral color
     float bandActivity = bVal * 0.7 * (0.4 + h7 * 0.6);
     vec3 col = mix(baseCol, bC, bandActivity);
 
     // Bass makes stars warmer (shifts toward magenta/red)
     vec3 bassWarm = vec3(0.9, 0.2, 0.5);
-    col = mix(col, bassWarm, u_bass * 0.25 * (0.5 + h5 * 0.5));
+    col = mix(col, bassWarm, mBass * 0.25 * (0.5 + h5 * 0.5));
 
     // High frequencies make bright stars flash white (shimmer)
     float shimmerRate = 3.0 + h1 * 5.0;
-    float shimmer = u_high * a_bright * (0.5 + 0.5 * sin(myTime3 * shimmerRate));
+    float shimmer = mHigh * a_bright * (0.5 + 0.5 * sin(myTime3 * shimmerRate));
     col = mix(col, vec3(1.0), shimmer * 0.5);
 
     // Near center = hotter, more saturated
     col = mix(col, col * 2.0 + vec3(0.25, 0.1, 0.45), nearCenter * 0.6);
 
     // Kick flash: momentary white-hot burst
-    col = mix(col, vec3(1.0, 0.9, 0.95), u_kick * 0.3 * (0.3 + h4 * 0.7));
+    col = mix(col, vec3(1.0, 0.9, 0.95), mKick * 0.3 * (0.3 + h4 * 0.7));
 
     // =============================================
     // BRIGHTNESS & ALPHA: Loudness = visibility
@@ -641,22 +649,22 @@ void main() {
     float bright = 0.4 + a_bright * 0.6;
 
     // RMS loudness drives overall brightness
-    bright *= 0.6 + u_rms * 1.0;
+    bright *= 0.6 + mRms * 1.0;
 
     // Band activity makes individual stars flare
     bright *= 1.0 + bVal * bVal * 1.5;
 
     // Energy drives the whole field
-    bright *= 0.7 + u_energy * 0.8;
+    bright *= 0.7 + mEnergy * 0.8;
 
     col *= bright * u_twBright;
 
     // Alpha: always visible, but louder = more opaque
     float alpha = 0.2 + a_bright * 0.4;                  // base: always visible
-    alpha += u_energy * 0.25;                             // energy lifts everything
+    alpha += mEnergy * 0.25;                              // energy lifts everything
     alpha += bVal * bVal * 0.3;                           // band activity
     alpha += nearCenter * 0.4;                            // denser near center
-    alpha += u_kick * 0.2 * h4;                           // kick flash
+    alpha += mKick * 0.2 * h4;                            // kick flash
     alpha *= pulse;                                        // breathe with heartbeat
 
     // Core sharpness: driven by energy and brightness
@@ -1339,7 +1347,7 @@ function getU(gl, prog, names) {
         'u_hueStars','u_hueHole','u_hueAll','u_satMul',
         'u_twGravity','u_twOrbit','u_twBassPush','u_twKick',
         'u_twInfall','u_twSpiral','u_twTidal','u_twEccentric','u_orbitPhase',
-        'u_twSize','u_twReact','u_twBright',
+        'u_twMaster','u_twSize','u_twReact','u_twBright',
         'u_twBloom','u_twTwist','u_twChroma','u_twLens','u_twWaves',
         'u_twVoid','u_twRing','u_twCorona'];
     const uR = getU(gl, renderProg, uNames);
@@ -1870,6 +1878,14 @@ function getU(gl, prog, names) {
             el.style.width = (v * 100) + '%';
         }
     }
+
+    let masterReact = 1.0;
+    const masterSlider = document.getElementById('tw-master');
+    const masterVal = document.getElementById('tw-master-val');
+    masterSlider.addEventListener('input', () => {
+        masterReact = parseFloat(masterSlider.value) / 100;
+        masterVal.textContent = masterSlider.value;
+    });
 
     const tweaks = {
         gravity:1, orbit:1, bassPush:1, kick:1, infall:1, spiral:1, tidal:1, eccentric:1,
@@ -2459,6 +2475,7 @@ function getU(gl, prog, names) {
         if (u.u_camUp !== null) gl.uniform3fv(u.u_camUp, cam.up);
         if (u.u_camDist !== null) gl.uniform1f(u.u_camDist, cam.dist);
         // Tweaks
+        if (u.u_twMaster !== null) gl.uniform1f(u.u_twMaster, masterReact);
         if (u.u_twGravity !== null) gl.uniform1f(u.u_twGravity, tweaks.gravity);
         if (u.u_twOrbit !== null) gl.uniform1f(u.u_twOrbit, tweaks.orbit);
         if (u.u_twBassPush !== null) gl.uniform1f(u.u_twBassPush, tweaks.bassPush);
