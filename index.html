@@ -1542,88 +1542,40 @@ function getU(gl, prog, names) {
         });
     });
 
-    function setTweak(id, val) {
-        // Clamp to user-defined min/max range
+    // setTweak: auto formulas output 0-1, mapped to [min, max] range
+    function setTweak(id, normalized01) {
         const r = tweakRange[id];
-        if (r) val = Math.max(r.min, Math.min(r.max, val));
+        const val = r ? r.min + normalized01 * (r.max - r.min) : normalized01 * 100;
         const key = tweakMap[id];
         tweaks[key] = val / 100;
         document.getElementById(id).value = Math.round(val);
         document.getElementById(id + '-val').textContent = Math.round(val);
     }
 
-    // Auto formulas — aggressive, musically intelligent
-    // Uses all extracted features: bass, mid, high, rms, kick, snare, hihat,
-    // subBass, flux, zcr, centroid, energy, melodic, drop, pulse
+    // Auto formulas — output 0.0 to 1.0 (mapped to min/max range by setTweak)
     const autoFormulas = {
-        // PHYSICS — the heartbeat of the black hole
-        'tw-gravity':   f => {
-            // Sub-bass IS gravity. Drops multiply it. Pulse adds rhythmic pumping.
-            return 50 + f.subBass * 200 + f.drop * 100 + f.pulse * f.bass * 50;
-        },
-        'tw-orbit':     f => {
-            // Melody drives flow. More melodic content = faster orbit. Energy lifts.
-            return 40 + f.mid * 100 + f.melodic * 80 + f.energy * 30;
-        },
-        'tw-bass-push': f => {
-            // Bass pushes, drops SLAM, kick adds punch
-            return 20 + f.bass * 200 + f.drop * 150 + f.kick * 50;
-        },
-        'tw-kick':      f => {
-            // Kick + snare combined — the full drum impact
-            return 5 + f.kick * 250 + f.snare * 100;
-        },
+        // PHYSICS
+        'tw-gravity':   f => Math.min(1, f.subBass * 0.5 + f.bass * 0.3 + f.drop * 0.2),
+        'tw-orbit':     f => Math.min(1, f.mid * 0.4 + f.melodic * 0.3 + f.energy * 0.3),
+        'tw-bass-push': f => Math.min(1, f.bass * 0.5 + f.drop * 0.3 + f.kick * 0.2),
+        'tw-kick':      f => Math.min(1, f.kick * 0.6 + f.snare * 0.3 + f.bass * 0.1),
 
-        // STARS — how alive the star field feels
-        'tw-size':      f => {
-            // Loudness swells stars. Drops make them huge. Sub-bass adds weight.
-            return 60 + f.rms * 120 + f.drop * 100 + f.subBass * 40;
-        },
-        'tw-react':     f => {
-            // Hihats + highs = sparkle. More melodic = more reactive.
-            return 50 + f.high * 130 + f.hihat * 120 + f.melodic * 50;
-        },
-        'tw-bloom':     f => {
-            // Melody = bloom. Musical sections glow, percussion sections sharpen.
-            return 40 + f.melodic * 130 + f.mid * 80 + f.rms * 50;
-        },
-        'tw-bright':    f => {
-            // Energy = brightness. Drops are blinding. Centroid adds color temp.
-            return 50 + f.energy * 100 + f.drop * 80 + f.centroid * 30;
-        },
+        // STARS
+        'tw-size':      f => Math.min(1, f.rms * 0.4 + f.drop * 0.3 + f.subBass * 0.2 + f.kick * 0.1),
+        'tw-react':     f => Math.min(1, f.high * 0.35 + f.hihat * 0.3 + f.melodic * 0.2 + f.energy * 0.15),
+        'tw-bloom':     f => Math.min(1, f.melodic * 0.4 + f.mid * 0.3 + f.rms * 0.3),
+        'tw-bright':    f => Math.min(1, f.energy * 0.4 + f.drop * 0.3 + f.rms * 0.2 + f.centroid * 0.1),
 
-        // SPACETIME — the fabric of reality bending to the music
-        'tw-twist':     f => {
-            // Sub-bass warps spacetime. The deeper the frequency, the more twist.
-            // Pulse makes it rhythmic — twist pumps on beat.
-            return 15 + f.subBass * 200 + f.bass * 100 + f.pulse * f.kick * 80;
-        },
-        'tw-chroma':    f => {
-            // Every transient fractures light — kick, snare, hihat all split RGB
-            return 15 + f.kick * 150 + f.snare * 120 + f.hihat * 80 + f.flux * 60;
-        },
-        'tw-lens':      f => {
-            // Bass bends light. Drops warp everything. Energy sustains distortion.
-            return 30 + f.bass * 150 + f.drop * 120 + f.energy * 50;
-        },
-        'tw-waves':     f => {
-            // Every drum hit sends a shockwave. More rhythmic = more waves.
-            return 5 + f.kick * 200 + f.snare * 150 + f.pulse * 80;
-        },
+        // SPACETIME
+        'tw-twist':     f => Math.min(1, f.subBass * 0.4 + f.bass * 0.3 + f.pulse * f.kick * 0.3),
+        'tw-chroma':    f => Math.min(1, f.kick * 0.35 + f.snare * 0.25 + f.hihat * 0.2 + f.flux * 0.2),
+        'tw-lens':      f => Math.min(1, f.bass * 0.4 + f.drop * 0.3 + f.energy * 0.3),
+        'tw-waves':     f => Math.min(1, f.kick * 0.4 + f.snare * 0.3 + f.pulse * 0.2 + f.flux * 0.1),
 
-        // BLACK HOLE — the center reacts to total musical power
-        'tw-void':      f => {
-            // The void breathes with energy. Drops make it swallow everything.
-            return 70 + f.energy * 80 + f.drop * 80 + f.bass * 40;
-        },
-        'tw-ring':      f => {
-            // The ring pulses on every beat, glows with loudness
-            return 40 + f.rms * 130 + f.kick * 80 + f.snare * 50;
-        },
-        'tw-corona':    f => {
-            // Corona explodes on drops and kicks. Melodic sections = sustained glow.
-            return 15 + f.kick * 150 + f.drop * 130 + f.energy * 60 + f.melodic * 30;
-        },
+        // BLACK HOLE
+        'tw-void':      f => Math.min(1, f.energy * 0.4 + f.drop * 0.3 + f.bass * 0.3),
+        'tw-ring':      f => Math.min(1, f.rms * 0.4 + f.kick * 0.3 + f.snare * 0.2 + f.energy * 0.1),
+        'tw-corona':    f => Math.min(1, f.kick * 0.3 + f.drop * 0.3 + f.energy * 0.25 + f.melodic * 0.15),
     };
 
     function updateAutoTweaks() {
