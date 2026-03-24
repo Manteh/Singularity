@@ -222,8 +222,17 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 /* Wire canvas overlay */
 #wire-canvas {
-  position: fixed; inset: 0; z-index: 49; pointer-events: none;
+  position: fixed; inset: 0; z-index: 51; pointer-events: none;
 }
+
+/* Draggable panel headers */
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: grab; user-select: none; margin: -16px -18px 8px;
+  padding: 10px 18px 8px; border-radius: 12px 12px 0 0;
+}
+.panel-header:active { cursor: grabbing; }
+.panel-header h3 { margin: 0; border: none; padding: 0; }
 
 /* ---- Debug panel ---- */
 #debug-overlay { right: 12px; }
@@ -282,7 +291,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 <canvas id="wire-canvas"></canvas>
 
 <div class="panel" id="audio-panel">
-  <h3>Audio Sources</h3>
+  <div class="panel-header"><h3>Audio Sources</h3></div>
   <div class="audio-row"><span class="a-label">Bass</span><div class="a-bar"><div class="a-fill" id="ap-bass" style="background:rgba(255,80,40,0.8)"></div></div><div class="audio-port" data-src="bass" style="border-color:#f54"></div></div>
   <div class="audio-row"><span class="a-label">Mid</span><div class="a-bar"><div class="a-fill" id="ap-mid" style="background:rgba(255,180,40,0.8)"></div></div><div class="audio-port" data-src="mid" style="border-color:#fb4"></div></div>
   <div class="audio-row"><span class="a-label">High</span><div class="a-bar"><div class="a-fill" id="ap-high" style="background:rgba(40,180,255,0.8)"></div></div><div class="audio-port" data-src="high" style="border-color:#4bf"></div></div>
@@ -303,6 +312,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 </div>
 
 <div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
+  <div class="panel-header"><h3>Settings</h3></div>
   <h3>Colors</h3>
   <div class="setting-row"><label>Global</label><input type="checkbox" class="auto-cb" id="auto-hue-all" title="Auto"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
@@ -1643,6 +1653,34 @@ function getU(gl, prog, names) {
         }
     });
 
+    // --- Draggable panels ---
+    document.querySelectorAll('.panel-header').forEach(header => {
+        const panel = header.closest('.panel');
+        let dragX = 0, dragY = 0, panelX = 0, panelY = 0, draggingPanel = false;
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return;
+            draggingPanel = true;
+            dragX = e.clientX;
+            dragY = e.clientY;
+            const rect = panel.getBoundingClientRect();
+            panelX = rect.left;
+            panelY = rect.top;
+            panel.style.transition = 'none';
+            e.preventDefault();
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!draggingPanel) return;
+            const dx = e.clientX - dragX, dy = e.clientY - dragY;
+            panel.style.left = (panelX + dx) + 'px';
+            panel.style.top = (panelY + dy) + 'px';
+            panel.style.right = 'auto';
+        });
+
+        window.addEventListener('mouseup', () => { draggingPanel = false; });
+    });
+
     // Wire canvas
     const wireCanvas = document.getElementById('wire-canvas');
     const wireCtx = wireCanvas.getContext('2d');
@@ -1697,8 +1735,21 @@ function getU(gl, prog, names) {
         mouseY = e.clientY;
     });
 
-    // Drop on setting port
+    // Drop on setting port OR click to disconnect
     document.querySelectorAll('.setting-port').forEach(port => {
+        port.addEventListener('click', (e) => {
+            if (isDraggingWire) return;
+            const targetId = port.dataset.target;
+            if (wires[targetId]) {
+                // Disconnect
+                delete wires[targetId];
+                port.classList.remove('connected');
+                port.style.borderColor = '';
+                port.style.background = '';
+                const slider = document.getElementById(targetId);
+                if (slider) { slider.disabled = false; slider.style.opacity = '1'; }
+            }
+        });
         port.addEventListener('mouseup', (e) => {
             if (!isDraggingWire || !dragSrc) return;
             const targetId = port.dataset.target;
@@ -1709,10 +1760,13 @@ function getU(gl, prog, names) {
             port.style.borderColor = dragColor;
             port.style.background = dragColor.replace(')', ',0.3)').replace('rgb', 'rgba');
 
-            // Enable auto for this slider
-            tweakAuto[targetId] = true;
+            // Disable auto checkbox — wire takes over
+            tweakAuto[targetId] = false;
             const cb = document.querySelector(`.tw-auto[data-tw="${targetId}"]`);
-            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+            if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); }
+            // Disable slider — wire drives it
+            const slider = document.getElementById(targetId);
+            if (slider) { slider.disabled = true; slider.style.opacity = '0.3'; }
 
             endDrag();
         });
@@ -1730,7 +1784,11 @@ function getU(gl, prog, names) {
 
     // Clear all wires
     document.getElementById('clear-wires').addEventListener('click', () => {
-        for (const id in wires) delete wires[id];
+        for (const id in wires) {
+            const slider = document.getElementById(id);
+            if (slider) { slider.disabled = false; slider.style.opacity = '1'; }
+            delete wires[id];
+        }
         document.querySelectorAll('.setting-port').forEach(p => {
             p.classList.remove('connected');
             p.style.borderColor = '';
@@ -1905,6 +1963,8 @@ function getU(gl, prog, names) {
     function updateAutoTweaks() {
         const f = audio.features;
         for (const id in tweakAuto) {
+            // Wires take priority — skip if wired
+            if (wires[id]) continue;
             if (tweakAuto[id] && autoFormulas[id]) {
                 setTweak(id, autoFormulas[id](f));
             }
