@@ -256,6 +256,10 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-orbit" title="Auto"><label>Orbit</label><input type="range" id="tw-orbit" min="0" max="200" value="100"><span class="val" id="tw-orbit-val">100</span><div class="auto-range" data-tw="tw-orbit"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="200" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-bass-push" title="Auto"><label>Bass</label><input type="range" id="tw-bass-push" min="0" max="300" value="100"><span class="val" id="tw-bass-push-val">100</span><div class="auto-range" data-tw="tw-bass-push"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-kick" title="Auto"><label>Kick</label><input type="range" id="tw-kick" min="0" max="300" value="100"><span class="val" id="tw-kick-val">100</span><div class="auto-range" data-tw="tw-kick"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-infall" title="Auto"><label>Infall</label><input type="range" id="tw-infall" min="0" max="300" value="100"><span class="val" id="tw-infall-val">100</span><div class="auto-range" data-tw="tw-infall"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-spiral" title="Auto"><label>Spiral</label><input type="range" id="tw-spiral" min="0" max="300" value="100"><span class="val" id="tw-spiral-val">100</span><div class="auto-range" data-tw="tw-spiral"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-tidal" title="Auto"><label>Tidal</label><input type="range" id="tw-tidal" min="0" max="300" value="100"><span class="val" id="tw-tidal-val">100</span><div class="auto-range" data-tw="tw-tidal"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
+  <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-eccentric" title="Auto"><label>Eccentric</label><input type="range" id="tw-eccentric" min="0" max="300" value="100"><span class="val" id="tw-eccentric-val">100</span><div class="auto-range" data-tw="tw-eccentric"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <h3>Stars</h3>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-size" title="Auto"><label>Size</label><input type="range" id="tw-size" min="20" max="300" value="100"><span class="val" id="tw-size-val">100</span><div class="auto-range" data-tw="tw-size"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="20" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
   <div class="setting-row"><input type="checkbox" class="auto-cb tw-auto" data-tw="tw-react" title="Auto"><label>React</label><input type="range" id="tw-react" min="0" max="300" value="100"><span class="val" id="tw-react-val">100</span><div class="auto-range" data-tw="tw-react"><span class="auto-range-label">Range</span><input type="number" class="ar-min" value="0" min="0" max="400"><span class="ar-sep">to</span><input type="number" class="ar-max" value="300" min="0" max="400"></div></div>
@@ -341,6 +345,12 @@ uniform float u_satMul;
 // Tweak multipliers (1.0 = default)
 uniform float u_twGravity, u_twOrbit, u_twBassPush, u_twKick;
 uniform float u_twSize, u_twReact, u_twBright;
+// New physics tweaks
+uniform float u_twInfall;    // how fast stars spiral inward
+uniform float u_twSpiral;    // spiral arm tightness
+uniform float u_twTidal;     // tidal stretching strength
+uniform float u_twEccentric; // orbit eccentricity (elliptical)
+uniform float u_orbitPhase;  // CPU-accumulated beat-driven orbit phase
 
 out vec4 v_color;
 out vec2 v_uv;
@@ -417,53 +427,76 @@ void main() {
     float myTime3 = t * (0.4 + h3 * 0.5) + seed * 63.0;
 
     // =============================================
-    // POSITION: Physics-driven but controlled
+    // POSITION: Black hole orbital physics
     // =============================================
     vec2 p = a_base;
-
-    // --- GRAVITY: Black hole pulls everything inward ---
-    // Pull strength driven by energy: more energy = stronger gravity
-    // This is the core physics interaction
-    float gravityStrength = (0.02 + u_energy * 0.06 + u_bass * 0.03) * u_twGravity;
-    // Inverse-distance pull (softened) — closer stars feel it more
     float dist0 = length(p);
-    float pull = gravityStrength / (dist0 + 0.15);
-    // Each star resists differently (h4 = inertia)
-    float inertia = 0.4 + h4 * 0.6;
-    p -= a_dir * pull * inertia * 0.08;
 
-    // --- REPULSION: Kicks and bass peaks push outward ---
-    // When the beat hits, gravity reverses momentarily
+    // --- INFALL: Stars slowly spiral inward, pulled by gravity ---
+    // Energy drives infall rate — high energy = matter sucked in faster
+    // Each star has its own infall phase based on seed
+    float infallRate = (0.01 + u_energy * 0.04 + u_bass * 0.02) * u_twInfall;
+    float infallPhase = fract(t * infallRate * (0.5 + h3 * 0.5) + h1);
+    // Stars that "reach" the center respawn at the outer edge (via fract)
+    float infallRadius = mix(0.03, dist0 * 1.2, 1.0 - infallPhase);
+    // Blend: infall pulls position toward center along its radial line
+    p = a_dir * (-infallRadius) * -1.0;
+    p = mix(a_base, normalize(a_base) * infallRadius, u_twInfall * 0.3);
+
+    // --- GRAVITY: Inverse-distance pull toward center ---
+    float gravityStrength = (0.02 + u_energy * 0.06 + u_bass * 0.03) * u_twGravity;
+    float gDist = length(p);
+    float pull = gravityStrength / (gDist + 0.12);
+    float inertia = 0.4 + h4 * 0.6;
+    p -= normalize(p) * pull * inertia * 0.1;
+
+    // --- REPULSION: Beats push outward against gravity ---
+    vec2 radDir = length(p) > 0.001 ? normalize(p) : a_dir;
     float repulse = u_kick * 0.15 * (0.3 + h4 * 0.7) * u_twKick;
     repulse += u_bass * 0.04 * h5 * u_twBassPush;
-    p += a_dir * repulse;
+    p += radDir * repulse;
 
-    // --- ORBIT: Slow differential rotation ---
-    float flowSpeed = (0.03 + u_energy * 0.03) * u_twOrbit;
-    float keplerFactor = 1.0 + (1.0 - a_orbit) * 1.2;
-    float flowAngle = t * flowSpeed * keplerFactor + seed * 6.28;
-    float cs = cos(flowAngle), sn = sin(flowAngle);
+    // --- ORBIT: Beat-driven phase (speeds up on beats, decelerates between) ---
+    // u_orbitPhase is accumulated on CPU based on audio energy
+    float keplerFactor = 1.0 + (1.0 - a_orbit) * 2.0; // inner = 3x faster
+    float orbitAngle = u_orbitPhase * keplerFactor * u_twOrbit + seed * 6.28;
+
+    // --- ECCENTRICITY: Elliptical orbits (not perfect circles) ---
+    // Each star has its own eccentricity direction
+    float eccAngle = h2 * 6.28;
+    float ecc = 0.15 * u_twEccentric * (0.5 + h5 * 0.5);
+    float eccFactor = 1.0 + ecc * cos(orbitAngle * 2.0 + eccAngle);
+    p *= eccFactor;
+
+    // Apply orbit rotation
+    float cs = cos(orbitAngle), sn = sin(orbitAngle);
     p = vec2(p.x * cs - p.y * sn, p.x * sn + p.y * cs);
 
-    // --- TIDAL FORCES: Mids create shearing streams ---
-    vec2 tangent = vec2(-a_dir.y, a_dir.x);
+    // --- SPIRAL ARMS: Tighten/loosen the spiral structure ---
+    // Higher spiral = more defined arm structure, wraps tighter
+    float spiralAngle = a_orbit * 6.28 * u_twSpiral * 0.5;
+    float sCS = cos(spiralAngle * 0.1), sSN = sin(spiralAngle * 0.1);
+    p = vec2(p.x * sCS - p.y * sSN, p.x * sSN + p.y * sCS);
+
+    // --- TIDAL FORCES: Stretching along orbital direction ---
+    vec2 tangent = vec2(-radDir.y, radDir.x);
+    float tidalStretch = u_mid * 0.015 * u_twTidal + 0.002;
     float wavePhase = a_orbit * 5.0 + seed * 1.5;
-    float tidalAmp = u_mid * 0.012 + 0.002;
-    p += tangent * sin(wavePhase + t * 0.35) * tidalAmp;
+    p += tangent * sin(wavePhase + t * 0.35) * tidalStretch;
+    // Tidal compression perpendicular — squeeze toward orbital plane
+    p -= radDir * cos(wavePhase + t * 0.25) * tidalStretch * 0.3;
 
     // --- BAND RESONANCE: Stars shift when their frequency plays ---
-    // Outward nudge when active, slight inward drift when silent
     float bandDisplace = bVal * 0.03 - (1.0 - bVal) * 0.005;
-    p += a_dir * bandDisplace * h6;
+    p += radDir * bandDisplace * h6;
 
     // --- ENERGY CONTRACTION: High energy compresses the disk ---
     p *= 1.0 + (1.0 - u_energy) * 0.08;
 
-    // --- FLUX: Subtle spacetime ripple ---
-    p += a_dir * sin(a_orbit * 6.0 - t * 0.5) * u_flux * 0.008;
+    // --- FLUX: Spacetime ripple ---
+    p += radDir * sin(a_orbit * 6.0 - t * 0.5) * u_flux * 0.008;
 
     // 3D position: XZ = disk, Y = height
-    // Kick inflates the disk vertically
     float yOff = a_height * (1.0 + u_kick * 0.6 + u_energy * 0.2);
     vec3 pos3 = vec3(p.x, yOff, p.y);
     float pDist = length(p);
@@ -1194,6 +1227,7 @@ function getU(gl, prog, names) {
         'u_viewProj','u_camRight','u_camUp','u_camDist',
         'u_hueStars','u_hueHole','u_hueAll','u_satMul',
         'u_twGravity','u_twOrbit','u_twBassPush','u_twKick',
+        'u_twInfall','u_twSpiral','u_twTidal','u_twEccentric','u_orbitPhase',
         'u_twSize','u_twReact','u_twBright',
         'u_twBloom','u_twTwist','u_twChroma','u_twLens','u_twWaves',
         'u_twVoid','u_twRing','u_twCorona'];
@@ -1499,13 +1533,14 @@ function getU(gl, prog, names) {
     document.getElementById('tweak-toggle').addEventListener('click', () => tweakPanel.classList.toggle('visible'));
 
     const tweaks = {
-        gravity:1, orbit:1, bassPush:1, kick:1,
+        gravity:1, orbit:1, bassPush:1, kick:1, infall:1, spiral:1, tidal:1, eccentric:1,
         size:1, react:1, bright:1,
         bloom:1, twist:1, chroma:1, lens:1, waves:1,
         void:1, ring:1, corona:1
     };
     const tweakMap = {
         'tw-gravity':'gravity', 'tw-orbit':'orbit', 'tw-bass-push':'bassPush', 'tw-kick':'kick',
+        'tw-infall':'infall', 'tw-spiral':'spiral', 'tw-tidal':'tidal', 'tw-eccentric':'eccentric',
         'tw-size':'size', 'tw-react':'react', 'tw-bright':'bright',
         'tw-bloom':'bloom', 'tw-twist':'twist', 'tw-chroma':'chroma', 'tw-lens':'lens', 'tw-waves':'waves',
         'tw-void':'void', 'tw-ring':'ring', 'tw-corona':'corona'
@@ -1563,6 +1598,10 @@ function getU(gl, prog, names) {
         'tw-orbit':     f => Math.min(1, f.mid * 0.4 + f.melodic * 0.3 + f.energy * 0.3),
         'tw-bass-push': f => Math.min(1, f.bass * 0.5 + f.drop * 0.3 + f.kick * 0.2),
         'tw-kick':      f => Math.min(1, f.kick * 0.6 + f.snare * 0.3 + f.bass * 0.1),
+        'tw-infall':    f => Math.min(1, f.energy * 0.5 + f.bass * 0.3 + f.drop * 0.2),
+        'tw-spiral':    f => Math.min(1, f.mid * 0.4 + f.melodic * 0.3 + f.energy * 0.3),
+        'tw-tidal':     f => Math.min(1, f.mid * 0.4 + f.flux * 0.3 + f.zcr * 0.3),
+        'tw-eccentric': f => Math.min(1, f.bass * 0.4 + f.kick * 0.3 + f.pulse * 0.3),
 
         // STARS
         'tw-size':      f => Math.min(1, f.rms * 0.4 + f.drop * 0.3 + f.subBass * 0.2 + f.kick * 0.1),
@@ -2084,6 +2123,11 @@ function getU(gl, prog, names) {
         if (u.u_twOrbit !== null) gl.uniform1f(u.u_twOrbit, tweaks.orbit);
         if (u.u_twBassPush !== null) gl.uniform1f(u.u_twBassPush, tweaks.bassPush);
         if (u.u_twKick !== null) gl.uniform1f(u.u_twKick, tweaks.kick);
+        if (u.u_twInfall !== null) gl.uniform1f(u.u_twInfall, tweaks.infall);
+        if (u.u_twSpiral !== null) gl.uniform1f(u.u_twSpiral, tweaks.spiral);
+        if (u.u_twTidal !== null) gl.uniform1f(u.u_twTidal, tweaks.tidal);
+        if (u.u_twEccentric !== null) gl.uniform1f(u.u_twEccentric, tweaks.eccentric);
+        if (u.u_orbitPhase !== null) gl.uniform1f(u.u_orbitPhase, orbitPhase);
         if (u.u_twSize !== null) gl.uniform1f(u.u_twSize, tweaks.size);
         if (u.u_twReact !== null) gl.uniform1f(u.u_twReact, tweaks.react);
         if (u.u_twBright !== null) gl.uniform1f(u.u_twBright, tweaks.bright);
@@ -2100,6 +2144,11 @@ function getU(gl, prog, names) {
         if (u.u_hueAll !== null) gl.uniform1f(u.u_hueAll, colorSettings.hueAll);
         if (u.u_satMul !== null) gl.uniform1f(u.u_satMul, colorSettings.satMul);
     }
+
+    // --- Beat-driven orbit phase ---
+    // Accumulates based on audio energy — speeds up on beats, decelerates in silence
+    let orbitPhase = 0;
+    let orbitVelocity = 0;
 
     // --- Render loop ---
     let time = 0, lastTime = performance.now() / 1000;
@@ -2118,6 +2167,15 @@ function getU(gl, prog, names) {
         audio.update(dt);
         updateAutoColor();
         updateAutoTweaks();
+
+        // Beat-driven orbit: accelerates on beats, decelerates between
+        // Energy difference drives the acceleration (sound change = orbit change)
+        const f = audio.features;
+        const beatAccel = f.kick * 0.8 + f.bass * 0.3 + f.energy * 0.15;
+        const targetVel = 0.02 + beatAccel * 0.15;  // base slow rotation + beat boost
+        // Fast attack, slow decay — orbit snaps to speed on beat, slowly coasts down
+        orbitVelocity += (targetVel - orbitVelocity) * (targetVel > orbitVelocity ? 0.5 : 0.03);
+        orbitPhase += orbitVelocity * dt * 60; // normalize to ~60fps
 
         if (audioEl?.duration) {
             seekBar.value = (audioEl.currentTime / audioEl.duration) * 1000;
