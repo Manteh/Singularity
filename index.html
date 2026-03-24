@@ -5,196 +5,207 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SINGULARITY</title>
 <link rel="icon" href="data:,">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
+:root {
+  --bg: rgba(10,10,16,0.95);
+  --border: rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.14);
+  --text-1: rgba(255,255,255,0.85);
+  --text-2: rgba(255,255,255,0.55);
+  --text-3: rgba(255,255,255,0.3);
+  --text-4: rgba(255,255,255,0.15);
+  --accent: rgba(130,90,255,1);
+  --accent-dim: rgba(130,90,255,0.15);
+  --accent-mid: rgba(130,90,255,0.4);
+  --surface: rgba(255,255,255,0.03);
+  --surface-hover: rgba(255,255,255,0.06);
+  --radius: 10px;
+  --radius-sm: 6px;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #999; }
-canvas { display: block; width: 100vw; height: 100vh; }
+body { background: #000; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; color: var(--text-2); font-size: 13px; }
+canvas#c { display: block; width: 100vw; height: 100vh; }
 
-/* ---- Drop zone ---- */
+/* ---- Landing ---- */
 #drop-zone {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  flex-direction: column; z-index: 100; background: rgba(0,0,0,0.95); transition: opacity 0.5s;
+  flex-direction: column; z-index: 100; background: rgba(0,0,0,0.96); transition: opacity 0.6s;
 }
 #drop-zone.hidden { opacity: 0; pointer-events: none; }
-#drop-zone h1 { font-size: 2.4rem; letter-spacing: 0.4em; color: #fff; margin-bottom: 0.8rem; text-transform: uppercase; font-weight: 300; }
-#drop-zone p { color: #555; font-size: 0.8rem; margin-bottom: 2rem; font-weight: 300; }
-#drop-zone.dragover { background: rgba(20,10,5,0.95); }
-#drop-zone.dragover h1 { color: #f80; }
+#drop-zone h1 { font-size: 2rem; letter-spacing: 0.35em; color: #fff; margin-bottom: 6px; text-transform: uppercase; font-weight: 300; }
+#drop-zone p { color: var(--text-3); font-size: 13px; margin-bottom: 28px; font-weight: 400; }
+#drop-zone.dragover { background: rgba(20,12,30,0.97); }
+#drop-zone.dragover h1 { color: var(--accent); }
 #file-input { display: none; }
-#drop-zone label, #demo-btn {
-  padding: 10px 28px; border: 1px solid #333; cursor: pointer; font-size: 0.75rem;
-  color: #666; transition: all 0.3s; letter-spacing: 0.15em; background: none;
-  font-family: inherit; border-radius: 3px;
+#drop-zone label, .dz-btn {
+  padding: 10px 24px; border: 1px solid var(--border-hover); cursor: pointer; font-size: 12px;
+  color: var(--text-2); background: var(--surface); font-family: inherit; letter-spacing: 0.1em;
+  border-radius: var(--radius-sm); transition: all 0.2s; font-weight: 500;
 }
-#drop-zone label:hover { border-color: #f80; color: #f80; }
-.dz-btn {
-  padding: 10px 28px; border: 1px solid #333; cursor: pointer; font-size: 0.75rem;
-  color: #666; background: none; font-family: inherit; letter-spacing: 0.15em;
-  border-radius: 3px; transition: all 0.3s;
-}
-#demo-btn:hover { border-color: #a0f; color: #a0f; }
-#tab-audio-btn:hover { border-color: #0f8; color: #0f8; }
-#yt-go:hover { border-color: #f44; color: #f44; }
+#drop-zone label:hover { border-color: var(--accent-mid); color: var(--text-1); background: var(--accent-dim); }
+#demo-btn:hover { border-color: var(--accent-mid); color: var(--accent); background: var(--accent-dim); }
+#tab-audio-btn:hover { border-color: rgba(0,220,140,0.3); color: rgba(0,220,140,0.9); background: rgba(0,220,140,0.08); }
+#yt-go:hover { border-color: var(--accent-mid); color: var(--accent); }
 
-#yt-input-row {
-  display: flex; gap: 8px; align-items: center; width: 100%; max-width: 420px;
-}
+#yt-input-row { display: flex; gap: 8px; align-items: center; width: 100%; max-width: 440px; }
 #yt-url {
-  flex: 1; background: rgba(255,255,255,0.04); border: 1px solid #333;
-  color: #aaa; padding: 9px 14px; font-size: 0.75rem; font-family: inherit;
-  border-radius: 3px; outline: none; transition: border-color 0.2s;
+  flex: 1; background: var(--surface); border: 1px solid var(--border-hover);
+  color: var(--text-1); padding: 10px 14px; font-size: 12px; font-family: inherit;
+  border-radius: var(--radius-sm); outline: none; transition: all 0.2s; font-weight: 400;
 }
-#yt-url:focus { border-color: #666; }
-#yt-url::placeholder { color: #444; }
-#yt-go { padding: 9px 18px; }
-#yt-status {
-  color: #555; font-size: 0.7rem; margin-top: 8px; min-height: 1.2em;
-  transition: color 0.2s;
-}
-#yt-status.error { color: #f55; }
-#yt-status.loading { color: #a0f; }
+#yt-url:focus { border-color: var(--accent-mid); box-shadow: 0 0 0 3px var(--accent-dim); }
+#yt-url::placeholder { color: var(--text-4); }
+#yt-go { padding: 10px 18px; }
+#yt-status { color: var(--text-3); font-size: 12px; margin-top: 10px; min-height: 1.2em; }
+#yt-status.error { color: #f66; }
+#yt-status.loading { color: var(--accent); }
 
-/* ---- Bottom audio controls ---- */
+/* ---- Bottom bar ---- */
 #controls {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 44px;
-  background: rgba(0,0,0,0.5); backdrop-filter: blur(12px);
-  display: flex; align-items: center; padding: 0 16px; z-index: 50;
-  opacity: 0; transition: opacity 0.3s; gap: 10px;
+  position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+  background: rgba(8,8,14,0.7); backdrop-filter: blur(16px);
+  display: flex; align-items: center; padding: 0 20px; z-index: 50;
+  opacity: 0; transition: opacity 0.3s; gap: 12px;
+  border-top: 1px solid var(--border);
 }
 #controls.visible { opacity: 1; }
-#controls:hover { background: rgba(0,0,0,0.7); }
 
 #play-btn {
-  background: none; border: 1px solid #444; color: #888; width: 28px; height: 28px;
-  cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;
-  border-radius: 3px; transition: all 0.2s;
+  background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-2);
+  width: 32px; height: 32px; cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); transition: all 0.15s;
 }
-#play-btn:hover { border-color: #aaa; color: #fff; }
-#time-display { font-size: 0.65rem; color: #555; min-width: 85px; font-variant-numeric: tabular-nums; }
+#play-btn:hover { border-color: var(--accent-mid); color: var(--text-1); background: var(--accent-dim); }
+#time-display { font-size: 11px; color: var(--text-3); min-width: 90px; font-variant-numeric: tabular-nums; font-weight: 500; }
 
-/* ---- Shared slider style ---- */
+/* ---- Sliders ---- */
 input[type=range] {
-  -webkit-appearance: none; appearance: none; height: 3px;
-  background: rgba(255,255,255,0.08); outline: none; border-radius: 2px; cursor: pointer;
+  -webkit-appearance: none; appearance: none; height: 4px;
+  background: var(--surface-hover); outline: none; border-radius: 2px; cursor: pointer;
 }
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
-  background: rgba(255,255,255,0.4); cursor: pointer; transition: all 0.15s;
-  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--text-3); cursor: pointer; transition: all 0.15s;
+  border: 2px solid rgba(0,0,0,0.4);
 }
-input[type=range]:hover::-webkit-slider-thumb { background: rgba(255,255,255,0.7); }
-input[type=range]:disabled { opacity: 0.3; cursor: default; }
+input[type=range]:hover::-webkit-slider-thumb { background: var(--text-1); }
+input[type=range]:disabled { opacity: 0.25; cursor: default; }
 #seek-bar { flex: 1; }
-#seek-bar:hover::-webkit-slider-thumb { background: #f80; }
+#seek-bar::-webkit-slider-thumb { background: var(--text-2); }
+#seek-bar:hover::-webkit-slider-thumb { background: var(--accent); }
 
-/* ---- Top bar buttons ---- */
+/* ---- Top nav ---- */
 .top-btn {
-  position: fixed; top: 10px; background: none; border: none;
-  color: rgba(255,255,255,0.2); font-size: 0.6rem; padding: 3px 8px; cursor: pointer;
-  z-index: 50; letter-spacing: 0.08em; font-family: inherit; transition: color 0.2s;
-  border-radius: 2px;
+  position: fixed; top: 12px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-3); font-size: 11px; padding: 5px 12px; cursor: pointer;
+  z-index: 50; letter-spacing: 0.04em; font-family: inherit; transition: all 0.15s;
+  border-radius: var(--radius-sm); font-weight: 500;
 }
-.top-btn:hover { color: rgba(255,255,255,0.6); }
-#fps { position: fixed; top: 12px; right: 12px; font-size: 0.6rem; color: rgba(255,255,255,0.15); z-index: 50; font-variant-numeric: tabular-nums; }
+.top-btn:hover { border-color: var(--border-hover); color: var(--text-2); background: var(--surface-hover); }
+#fps {
+  position: fixed; top: 14px; right: 14px; font-size: 10px; color: var(--text-4);
+  z-index: 50; font-variant-numeric: tabular-nums; font-weight: 500;
+}
 
-/* ---- Panels (shared) ---- */
+/* ---- Panels ---- */
 .panel {
-  position: fixed; top: 40px; width: 310px; z-index: 50; display: none;
-  background: rgba(6,6,10,0.94); backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.05); border-radius: 12px;
-  padding: 16px 18px; font-size: 0.8rem;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  position: fixed; top: 48px; width: 300px; z-index: 50; display: none;
+  background: var(--bg); backdrop-filter: blur(24px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0; font-size: 13px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.02) inset;
 }
 .panel.visible { display: block; }
 .panel h3 {
-  color: rgba(255,255,255,0.35); font-size: 0.6rem; font-weight: 600;
-  margin: 14px 0 4px; letter-spacing: 0.14em; text-transform: uppercase;
-  padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-3); font-size: 10px; font-weight: 600;
+  margin: 0; padding: 10px 16px 6px; letter-spacing: 0.12em; text-transform: uppercase;
 }
-.panel h3:first-child { margin-top: 0; }
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: grab; user-select: none; padding: 12px 16px 0;
+  border-radius: var(--radius) var(--radius) 0 0; margin: 0;
+}
+.panel-header:active { cursor: grabbing; }
+.panel-header h3 { padding: 0; margin: 0; font-size: 11px; color: var(--text-2); letter-spacing: 0.08em; }
+.panel-body { padding: 0 16px 16px; }
 
 .setting-row {
   display: flex; align-items: center; flex-wrap: wrap;
-  margin: 0; padding: 6px 0; gap: 8px;
+  margin: 0; padding: 5px 0; gap: 6px;
 }
-.setting-row label { color: rgba(255,255,255,0.5); min-width: 55px; font-size: 0.72rem; }
-.setting-row input[type=range] { flex: 1; margin: 0 4px; min-width: 70px; }
+.setting-row label { color: var(--text-2); min-width: 52px; font-size: 11px; font-weight: 500; }
+.setting-row input[type=range] { flex: 1; margin: 0 2px; min-width: 60px; }
 .setting-row .val {
-  color: rgba(255,255,255,0.3); min-width: 28px; text-align: right;
-  font-size: 0.65rem; font-variant-numeric: tabular-nums;
+  color: var(--text-4); min-width: 26px; text-align: right;
+  font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 500;
 }
-.tw-btn {
-  background: none; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.4);
-  cursor: pointer; padding: 6px 16px; font-family: inherit; font-size: 0.65rem;
-  border-radius: 4px; letter-spacing: 0.08em; transition: all 0.15s;
-}
-.tw-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.6); }
-.preset-btn {
-  background: none; border: 1px solid rgba(140,80,255,0.25); color: rgba(140,80,255,0.6);
-  cursor: pointer; padding: 3px 10px; font-family: inherit; font-size: 0.6rem;
-  border-radius: 4px; margin: 2px; transition: all 0.15s;
-}
-.preset-btn:hover { border-color: rgba(140,80,255,0.5); color: rgba(140,80,255,0.9); }
-.builtin-preset { border-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.35); }
-.builtin-preset:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.7); }
-.preset-del {
-  background: none; border: none; color: rgba(255,80,80,0.35); cursor: pointer;
-  font-size: 0.7rem; padding: 0 3px; margin-left: 2px;
-}
-.preset-del:hover { color: rgba(255,80,80,0.8); }
 
-/* Auto checkbox */
+/* ---- Buttons ---- */
+.tw-btn {
+  background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-3);
+  cursor: pointer; padding: 6px 14px; font-family: inherit; font-size: 11px;
+  border-radius: var(--radius-sm); letter-spacing: 0.04em; transition: all 0.15s; font-weight: 500;
+}
+.tw-btn:hover { border-color: var(--accent-mid); color: var(--text-2); background: var(--accent-dim); }
+.preset-btn {
+  background: var(--accent-dim); border: 1px solid var(--accent-mid); color: var(--accent);
+  cursor: pointer; padding: 3px 10px; font-family: inherit; font-size: 10px;
+  border-radius: var(--radius-sm); margin: 2px; transition: all 0.15s; font-weight: 500;
+}
+.preset-btn:hover { background: rgba(130,90,255,0.25); color: #fff; }
+.builtin-preset { background: var(--surface); border-color: var(--border-hover); color: var(--text-3); }
+.builtin-preset:hover { border-color: var(--accent-mid); color: var(--text-1); background: var(--accent-dim); }
+.preset-del {
+  background: none; border: none; color: rgba(255,80,80,0.4); cursor: pointer;
+  font-size: 12px; padding: 0 3px; margin-left: 1px;
+}
+.preset-del:hover { color: rgba(255,80,80,0.9); }
+
+/* ---- Checkboxes ---- */
 .auto-cb {
-  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
-  border: 1.5px solid rgba(255,255,255,0.18); border-radius: 3px;
+  -webkit-appearance: none; appearance: none; width: 15px; height: 15px;
+  border: 1.5px solid var(--border-hover); border-radius: 4px;
   background: transparent; cursor: pointer; margin: 0; flex-shrink: 0;
   transition: all 0.15s; position: relative;
 }
-.auto-cb:hover { border-color: rgba(255,255,255,0.4); }
-.auto-cb:checked {
-  background: rgba(140,80,255,0.3); border-color: rgba(140,80,255,0.6);
-}
+.auto-cb:hover { border-color: var(--accent-mid); }
+.auto-cb:checked { background: var(--accent-dim); border-color: var(--accent); }
 .auto-cb:checked::after {
-  content: ''; position: absolute; top: 2px; left: 5px;
-  width: 4px; height: 8px; border: solid rgba(140,80,255,0.9);
+  content: ''; position: absolute; top: 2px; left: 4px;
+  width: 5px; height: 8px; border: solid var(--accent);
   border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 
-/* Auto min/max range — appears on a new line below the slider row */
+/* ---- Auto range ---- */
 .auto-range {
-  display: none; width: 100%; padding: 3px 0 2px 20px;
-  align-items: center; gap: 6px;
+  display: none; width: 100%; padding: 2px 0 2px 22px; align-items: center; gap: 6px;
 }
 .auto-range.visible { display: flex; }
-.auto-range-label {
-  color: rgba(255,255,255,0.2); font-size: 0.55rem; letter-spacing: 0.05em;
-}
+.auto-range-label { color: var(--text-4); font-size: 10px; font-weight: 500; }
 .auto-range input[type=number] {
-  width: 42px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.5); font-size: 0.65rem; font-family: inherit;
-  padding: 3px 4px; border-radius: 3px; text-align: center; outline: none;
-  font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+  width: 42px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 11px; font-family: inherit;
+  padding: 3px 4px; border-radius: 4px; text-align: center; outline: none;
+  font-variant-numeric: tabular-nums; -moz-appearance: textfield; font-weight: 500;
 }
 .auto-range input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
-.auto-range input[type=number]:focus { border-color: rgba(140,80,255,0.5); }
-.auto-range .ar-sep { color: rgba(255,255,255,0.15); font-size: 0.6rem; }
+.auto-range input[type=number]:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+.auto-range .ar-sep { color: var(--text-4); font-size: 10px; }
 
-/* Color slider thumb accents */
-#hue-all::-webkit-slider-thumb { background: rgba(200,200,255,0.5); }
-#hue-stars::-webkit-slider-thumb { background: rgba(140,90,255,0.6); }
-#hue-hole::-webkit-slider-thumb { background: rgba(80,160,240,0.6); }
-#sat-all::-webkit-slider-thumb { background: rgba(255,255,255,0.5); }
+/* ---- Slider accents ---- */
+#hue-all::-webkit-slider-thumb { background: #9a7aff; border-color: rgba(0,0,0,0.5); }
+#hue-stars::-webkit-slider-thumb { background: #8a5cf5; border-color: rgba(0,0,0,0.5); }
+#hue-hole::-webkit-slider-thumb { background: #5a9eef; border-color: rgba(0,0,0,0.5); }
+#sat-all::-webkit-slider-thumb { background: #ccc; border-color: rgba(0,0,0,0.5); }
 
 /* ---- Audio patch panel ---- */
-#audio-panel {
-  left: 340px; width: 220px;
-}
-.audio-row {
-  display: flex; align-items: center; padding: 5px 0; gap: 8px;
-}
-.audio-row .a-label { color: rgba(255,255,255,0.5); min-width: 52px; font-size: 0.7rem; }
+#audio-panel { left: 328px; width: 240px; }
+.audio-row { display: flex; align-items: center; padding: 4px 0; gap: 8px; }
+.audio-row .a-label { color: var(--text-2); min-width: 52px; font-size: 11px; font-weight: 500; }
 .audio-row .a-bar {
-  flex: 1; height: 6px; background: rgba(255,255,255,0.06);
+  flex: 1; height: 5px; background: var(--surface-hover);
   border-radius: 3px; overflow: hidden; position: relative;
 }
 .audio-row .a-fill {
@@ -203,57 +214,49 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 }
 .audio-port {
   width: 14px; height: 14px; border-radius: 50%; border: 2px solid;
-  cursor: grab; flex-shrink: 0; position: relative; transition: transform 0.1s;
+  cursor: grab; flex-shrink: 0; transition: all 0.12s; background: rgba(0,0,0,0.3);
 }
-.audio-port:hover { transform: scale(1.3); }
-.audio-port.dragging { cursor: grabbing; transform: scale(1.4); }
+.audio-port:hover { transform: scale(1.25); box-shadow: 0 0 8px currentColor; }
+.audio-port.dragging { cursor: grabbing; transform: scale(1.35); }
 
-/* Setting input ports */
+/* ---- Setting ports ---- */
 .setting-port {
   width: 10px; height: 10px; border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.15); background: transparent;
-  cursor: pointer; flex-shrink: 0; transition: all 0.15s;
-  margin-right: 2px;
+  border: 1.5px solid var(--border-hover); background: transparent;
+  cursor: pointer; flex-shrink: 0; transition: all 0.15s; margin-right: 2px;
 }
-.setting-port:hover { border-color: rgba(255,255,255,0.5); transform: scale(1.2); }
-.setting-port.connected {
-  border-color: rgba(140,80,255,0.6); background: rgba(140,80,255,0.3);
-}
+.setting-port:hover { border-color: var(--accent); transform: scale(1.2); }
+.setting-port.connected { border-color: var(--accent); background: var(--accent-mid); }
 
-/* Wire canvas overlay */
-#wire-canvas {
-  position: fixed; inset: 0; z-index: 51; pointer-events: none;
-}
+/* ---- Wire canvas ---- */
+#wire-canvas { position: fixed; inset: 0; z-index: 51; pointer-events: none; }
 
-/* Draggable panel headers */
-.panel-header {
-  display: flex; align-items: center; justify-content: space-between;
-  cursor: grab; user-select: none; margin: -16px -18px 8px;
-  padding: 10px 18px 8px; border-radius: 12px 12px 0 0;
-}
-.panel-header:active { cursor: grabbing; }
-.panel-header h3 { margin: 0; border: none; padding: 0; }
-
-/* ---- Debug panel ---- */
-#debug-overlay { right: 12px; }
-.debug-bar { display: flex; align-items: center; margin: 0; padding: 4px 0; }
-.debug-bar .label { width: 58px; color: rgba(255,255,255,0.35); font-size: 0.65rem; }
+/* ---- Debug ---- */
+#debug-overlay { right: 14px; }
+.debug-bar { display: flex; align-items: center; padding: 3px 0; }
+.debug-bar .label { width: 56px; color: var(--text-3); font-size: 10px; font-weight: 500; }
 .debug-bar .bar {
-  flex: 1; height: 4px; background: rgba(255,255,255,0.05);
+  flex: 1; height: 4px; background: var(--surface-hover);
   position: relative; border-radius: 2px; overflow: hidden;
 }
 .debug-bar .bar .fill {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  border-radius: 2px; transition: width 0.05s;
+  position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px;
+  transition: width 0.05s;
 }
 
 /* ---- Error ---- */
 #error-msg {
-  position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
-  background: rgba(255,30,30,0.12); border: 1px solid rgba(255,50,50,0.3); color: #f66;
-  padding: 8px 16px; font-size: 0.7rem; z-index: 200; display: none;
-  max-width: 80vw; border-radius: 6px;
+  position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,40,40,0.08); border: 1px solid rgba(255,50,50,0.2); color: #f66;
+  padding: 8px 18px; font-size: 12px; z-index: 200; display: none;
+  max-width: 80vw; border-radius: var(--radius-sm); backdrop-filter: blur(12px);
 }
+
+/* ---- Scrollbar ---- */
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
+.panel::-webkit-scrollbar-thumb:hover { background: var(--text-4); }
 </style>
 </head>
 <body>
@@ -292,6 +295,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
 
 <div class="panel" id="audio-panel">
   <div class="panel-header"><h3>Audio Sources</h3></div>
+  <div class="panel-body">
   <div class="audio-row"><span class="a-label">Bass</span><div class="a-bar"><div class="a-fill" id="ap-bass" style="background:rgba(255,80,40,0.8)"></div></div><div class="audio-port" data-src="bass" style="border-color:#f54"></div></div>
   <div class="audio-row"><span class="a-label">Mid</span><div class="a-bar"><div class="a-fill" id="ap-mid" style="background:rgba(255,180,40,0.8)"></div></div><div class="audio-port" data-src="mid" style="border-color:#fb4"></div></div>
   <div class="audio-row"><span class="a-label">High</span><div class="a-bar"><div class="a-fill" id="ap-high" style="background:rgba(40,180,255,0.8)"></div></div><div class="audio-port" data-src="high" style="border-color:#4bf"></div></div>
@@ -307,13 +311,15 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="audio-row"><span class="a-label">Pulse</span><div class="a-bar"><div class="a-fill" id="ap-pulse" style="background:rgba(120,255,80,0.6)"></div></div><div class="audio-port" data-src="pulse" style="border-color:#8f5"></div></div>
   <div class="audio-row"><span class="a-label">Melodic</span><div class="a-bar"><div class="a-fill" id="ap-melodic" style="background:rgba(200,140,255,0.6)"></div></div><div class="audio-port" data-src="melodic" style="border-color:#c8f"></div></div>
   <div style="margin-top:8px;text-align:center">
-    <button class="tw-btn" id="clear-wires">CLEAR WIRES</button>
+    <button class="tw-btn" id="clear-wires">Clear Wires</button>
+  </div>
   </div>
 </div>
 
 <div class="panel" id="tweak-panel" style="left:12px;max-height:calc(100vh - 90px);overflow-y:auto">
   <div class="panel-header"><h3>Settings</h3></div>
-  <div class="setting-row" style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><label style="font-weight:600;color:rgba(255,255,255,0.6)">Master</label><input type="range" id="tw-master" min="0" max="100" value="100"><span class="val" id="tw-master-val">100</span></div>
+  <div class="panel-body">
+  <div class="setting-row" style="padding:8px 0;border-bottom:1px solid var(--border)"><label style="font-weight:600;color:var(--text-1)">Master</label><input type="range" id="tw-master" min="0" max="100" value="100"><span class="val" id="tw-master-val">100</span></div>
   <h3>Colors</h3>
   <div class="setting-row"><label>Global</label><input type="checkbox" class="auto-cb" id="auto-hue-all" title="Auto"><input type="range" id="hue-all" min="0" max="360" value="0"><span class="val" id="hue-all-val">0</span></div>
   <div class="setting-row"><label>Stars</label><input type="checkbox" class="auto-cb" id="auto-hue-stars" title="Auto"><input type="range" id="hue-stars" min="0" max="360" value="0"><span class="val" id="hue-stars-val">0</span></div>
@@ -348,12 +354,14 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
     <button class="tw-btn" id="tw-reset">RESET</button>
   </div>
   <div id="tw-presets" style="margin-top:4px"></div>
-  <h3 style="margin-top:8px">Presets</h3>
+  <h3>Presets</h3>
   <div id="tw-presets-builtin" style="line-height:1.8"></div>
+  </div>
 </div>
 
-<div class="panel" id="debug-overlay" style="right:12px">
-  <h3>Audio</h3>
+<div class="panel" id="debug-overlay" style="right:14px">
+  <div class="panel-header"><h3>Audio Monitor</h3></div>
+  <div class="panel-body">
   <div class="debug-bar"><span class="label">Bass</span><div class="bar"><div class="fill" id="db-bass" style="background:rgba(255,68,0,0.7)"></div></div></div>
   <div class="debug-bar"><span class="label">Mid</span><div class="bar"><div class="fill" id="db-mid" style="background:rgba(255,170,0,0.7)"></div></div></div>
   <div class="debug-bar"><span class="label">High</span><div class="bar"><div class="fill" id="db-high" style="background:rgba(0,170,255,0.7)"></div></div></div>
@@ -363,6 +371,7 @@ input[type=range]:disabled { opacity: 0.3; cursor: default; }
   <div class="debug-bar"><span class="label">Flux</span><div class="bar"><div class="fill" id="db-flux" style="background:rgba(0,255,255,0.6)"></div></div></div>
   <div class="debug-bar"><span class="label">ZCR</span><div class="bar"><div class="fill" id="db-zcr" style="background:rgba(136,255,0,0.6)"></div></div></div>
   <div class="debug-bar"><span class="label">Energy</span><div class="bar"><div class="fill" id="db-energy" style="background:rgba(255,136,0,0.7)"></div></div></div>
+  </div>
 </div>
 
 <script>
