@@ -705,47 +705,73 @@ void main() {
     // Zoom scale for lensing
     float zs = 3.0 / max(u_camDist, 0.5);
 
-    // Gravitational lensing — stronger on drops, scales with zoom
-    float lensRadius = (0.12 + u_flux * 0.08 + u_kick * 0.06) * zs;
-    float lensStrength = (0.025 + u_flux * 0.04 + u_bass * 0.02 + u_kick * 0.03) * zs * u_twLens;
+    // === GRAVITATIONAL LENSING: smooth, deep, energy-reactive ===
+    float lensRadius = (0.18 + u_flux * 0.1 + u_energy * 0.08 + u_kick * 0.06) * zs;
+    float lensStrength = (0.03 + u_flux * 0.04 + u_bass * 0.03 + u_kick * 0.04 + u_energy * 0.02) * zs * u_twLens;
+    // Smooth cubic falloff instead of linear — more natural light bending
     float lensFactor = smoothstep(lensRadius, 0.0, dist);
+    lensFactor *= lensFactor; // squared = steeper near center, gentler far
     vec2 lensedUV = clamp(uv + dir * lensFactor * lensStrength, 0.0, 1.0);
 
-    // === SPACETIME TWIST: bass swirls space near the center ===
-    float twistStrength = (u_bass * 0.15 + u_energy * 0.05) * u_twTwist;
-    float twistFalloff = smoothstep(0.25 * zs, 0.0, dist);
-    float twistAngle = twistStrength * twistFalloff;
+    // === SPACETIME TWIST: multi-layered swirl ===
+    // Layer 1: Deep slow bass twist
+    float twistBass = u_bass * 0.18 * u_twTwist;
+    // Layer 2: Energy-driven tighter twist
+    float twistEnergy = u_energy * 0.08 * u_twTwist;
+    // Layer 3: Kick punches a sudden twist spike
+    float twistKick = u_kick * 0.12 * u_twTwist;
+    // Combined with smooth distance falloff
+    float twistFalloff = smoothstep(0.3 * zs, 0.0, dist);
+    float twistAngle = (twistBass + twistEnergy + twistKick) * twistFalloff;
     vec2 twisted = lensedUV - center;
     float twC = cos(twistAngle), twS = sin(twistAngle);
     twisted = vec2(twisted.x * twC - twisted.y * twS, twisted.x * twS + twisted.y * twC);
     lensedUV = clamp(twisted + center, 0.0, 1.0);
 
-    // === GRAVITATIONAL WAVE PULSE: expanding distortion ring on kicks ===
-    // Pulse expands outward from center over time — u_kick triggers, u_time advances
+    // === HEAT HAZE: subtle rippling distortion field across the whole scene ===
+    // Like looking through hot air near the black hole — driven by mids and flux
+    float hazeAngle = atan(toCenter.y, toCenter.x);
+    float hazeR = dist * 30.0 / zs;
+    float haze1 = sin(hazeR + u_time * 1.2 + hazeAngle * 2.0) * 0.0015;
+    float haze2 = sin(hazeR * 0.7 - u_time * 0.8 + hazeAngle * 3.0) * 0.001;
+    float hazeStrength = (u_mid * 0.5 + u_flux * 0.3 + u_energy * 0.2) * smoothstep(0.4 * zs, 0.02, dist);
+    vec2 hazeOffset = vec2(
+        haze1 * cos(hazeAngle) - haze2 * sin(hazeAngle),
+        haze1 * sin(hazeAngle) + haze2 * cos(hazeAngle)
+    ) * hazeStrength * u_twWaves;
+    lensedUV = clamp(lensedUV + hazeOffset, 0.0, 1.0);
+
+    // === GRAVITATIONAL WAVES: expanding rings from ALL drum transients ===
     float pulseWave = 0.0;
-    for (int i = 0; i < 3; i++) {
-        // Multiple overlapping pulses at different speeds
-        float speed = 0.3 + float(i) * 0.15;
-        float pulseR = fract(u_time * speed) * 0.6;
-        float pulseWidth = 0.02 + float(i) * 0.01;
+    // 5 overlapping waves at different speeds — more visible, more reactive
+    for (int i = 0; i < 5; i++) {
+        float speed = 0.2 + float(i) * 0.12;
+        float pulseR = fract(u_time * speed) * 0.7;
+        float pulseWidth = 0.015 + float(i) * 0.008;
         float pulseDist = abs(dist - pulseR * zs);
         float pulse = exp(-pulseDist * pulseDist / (pulseWidth * pulseWidth * zs * zs));
         pulseWave += pulse;
     }
-    // Pulse distorts UV radially — strength driven by kick + flux
-    float pulseDistort = pulseWave * (u_kick * 0.015 + u_flux * 0.008) * u_twWaves;
-    lensedUV = clamp(lensedUV + dir * pulseDistort, 0.0, 1.0);
+    // All transients feed the waves: kick, snare (via flux), bass
+    float waveIntensity = u_kick * 0.02 + u_flux * 0.012 + u_bass * 0.005;
+    float pulseDistort = pulseWave * waveIntensity * u_twWaves;
+    // Waves distort both radially and tangentially (swirling ripple)
+    vec2 tangentDir = vec2(-dir.y, dir.x);
+    lensedUV = clamp(lensedUV + dir * pulseDistort + tangentDir * pulseDistort * 0.3, 0.0, 1.0);
 
-    // === CHROMATIC ABERRATION: RGB split increases with energy ===
-    float chromaStrength = (u_energy * 0.003 + u_kick * 0.006 + u_flux * 0.002) * zs * u_twChroma;
-    // Near center = stronger aberration
-    float chromaFalloff = smoothstep(0.3 * zs, 0.0, dist);
-    float chroma = chromaStrength * (0.3 + chromaFalloff * 0.7);
+    // === CHROMATIC ABERRATION: smooth, distance-weighted ===
+    float chromaStrength = (u_energy * 0.004 + u_kick * 0.008 + u_flux * 0.003 + u_bass * 0.002) * zs * u_twChroma;
+    // Cubic falloff near center — smooth transition, not abrupt
+    float chromaFalloff = smoothstep(0.35 * zs, 0.0, dist);
+    chromaFalloff *= chromaFalloff;
+    float chroma = chromaStrength * (0.2 + chromaFalloff * 0.8);
 
+    // Tangential chromatic split (not just radial) — more realistic
+    vec2 chromaDir = mix(dir, tangentDir, 0.2);
     vec3 col;
-    col.r = texture(u_scene, clamp(lensedUV + dir * chroma, 0.0, 1.0)).r;
+    col.r = texture(u_scene, clamp(lensedUV + chromaDir * chroma, 0.0, 1.0)).r;
     col.g = texture(u_scene, lensedUV).g;
-    col.b = texture(u_scene, clamp(lensedUV - dir * chroma, 0.0, 1.0)).b;
+    col.b = texture(u_scene, clamp(lensedUV - chromaDir * chroma, 0.0, 1.0)).b;
 
     // Bloom: subtle, preserves star clarity
     float bloomStr = (0.15 + u_rms * 0.25 + u_high * 0.1) * u_twBloom;
@@ -790,50 +816,68 @@ void main() {
         holeColor = mix(burnCol, peakCol, (dropHeat - 0.65) * 2.86);
     }
 
-    // === SPACETIME DISTORTION: only on energy peaks ===
+    // === SPACETIME DISTORTION: always active, intensity scales with music ===
     float angle = atan(toCenter.y, toCenter.x);
 
-    // Distortion threshold: nothing happens below 0.5 energy, ramps up above
-    float peakIntensity = smoothstep(0.4, 0.85, energy) + u_kick * 0.8;
+    // Continuous distortion — always slightly alive, peaks on energy
+    float peakIntensity = 0.05 + smoothstep(0.2, 0.8, energy) * 0.7 + u_kick * 0.5;
     peakIntensity = min(peakIntensity, 1.0);
 
-    // When energy peaks, spacetime tears — asymmetric, violent distortion
-    float warp1 = sin(angle * 2.0 + u_time * 0.7 + u_bass * 6.0) * 0.4;
-    float warp2 = sin(angle * 3.0 - u_time * 1.3 + energy * 5.0) * 0.3;
-    float warp3 = sin(angle * 5.0 + u_time * 2.5) * 0.15;
-    // Bass-driven asymmetric bulge
-    float warp4 = sin(angle * 1.0 + u_time * 0.3) * u_bass * 0.6;
-    float shapeWarp = (warp1 + warp2 + warp3 + warp4) * peakIntensity;
+    // Multi-frequency warp: slow undulation + bass punch + energy roil
+    float warp1 = sin(angle * 2.0 + u_time * 0.5 + u_bass * 5.0) * 0.35;
+    float warp2 = sin(angle * 3.0 - u_time * 0.9 + energy * 4.0) * 0.25;
+    float warp3 = sin(angle * 5.0 + u_time * 1.8 + u_high * 3.0) * 0.12;
+    float warp4 = sin(angle * 1.0 + u_time * 0.25) * u_bass * 0.5;
+    // Sub-bass adds deep slow breathing
+    float warp5 = sin(angle * 1.0 - u_time * 0.15) * u_mid * 0.2;
+    float shapeWarp = (warp1 + warp2 + warp3 + warp4 + warp5) * peakIntensity;
 
-    float warpedDist = dist + shapeWarp * 0.02 * zoomScale;
+    float warpedDist = dist + shapeWarp * 0.025 * zoomScale;
 
-    // === EVENT HORIZON: swells and distorts on peaks ===
-    float ringR = (0.03 + u_rms * 0.012 + energy * 0.025 + u_kick * 0.035) * zoomScale;
+    // === EVENT HORIZON: primary ring ===
+    float ringR = (0.032 + u_rms * 0.015 + energy * 0.025 + u_kick * 0.03) * zoomScale;
     float ringDist = abs(warpedDist - ringR);
-    float ringWidth = (10000.0 - peakIntensity * 6000.0) / (zoomScale * zoomScale);
+    float ringWidth = (9000.0 - peakIntensity * 5000.0) / (zoomScale * zoomScale);
     float ring = exp(-ringDist * ringDist * ringWidth) * (0.5 + energy * 2.5 + u_kick * 2.0);
     col += holeColor * 2.5 * ring * u_twRing;
 
-    // === SECONDARY RING: outer halo ===
-    float outerR = ringR + (0.015 + energy * 0.025 + u_kick * 0.015) * zoomScale;
+    // === SECONDARY RING: outer accretion halo ===
+    float outerR = ringR + (0.018 + energy * 0.02 + u_kick * 0.012) * zoomScale;
     float outerDist2 = abs(warpedDist - outerR);
-    float outerRing = exp(-outerDist2 * outerDist2 * (2000.0 / (zoomScale * zoomScale))) * (0.15 + energy * 0.6 + u_kick * 0.3);
+    float outerRing = exp(-outerDist2 * outerDist2 * (1800.0 / (zoomScale * zoomScale)));
+    outerRing *= (0.15 + energy * 0.6 + u_kick * 0.3);
     vec3 outerCol = mix(holeColor, peakCol, peakIntensity * 0.4);
     col += outerCol * 0.6 * outerRing * u_twRing;
 
-    // === ENERGY CORONA: when it really goes hard, light floods outward ===
-    float coronaR = (0.1 + energy * 0.06 + u_kick * 0.04) * zoomScale;
-    float corona = smoothstep(coronaR, 0.0, warpedDist) * peakIntensity * 0.8 * u_twCorona;
-    vec3 coronaCol = mix(vec3(0.3, 0.1, 0.6), peakCol, peakIntensity);
+    // === INNER PHOTON RING: thin bright line right at the void edge ===
+    float photonR = ringR * 0.7;
+    float photonDist = abs(warpedDist - photonR);
+    float photonRing = exp(-photonDist * photonDist * (50000.0 / (zoomScale * zoomScale)));
+    photonRing *= (0.3 + energy * 0.6 + u_kick * 0.4) * u_twRing;
+    col += mix(holeColor, vec3(0.9, 0.92, 1.0), 0.5) * photonRing;
+
+    // === FRAME DRAGGING: spinning spacetime near horizon ===
+    float frameR = smoothstep(ringR * 2.5, ringR * 0.8, warpedDist);
+    float frameSpin = sin(angle + warpedDist * 35.0 / zoomScale - u_time * 1.2 - u_bass * 2.0);
+    frameSpin = frameSpin * 0.5 + 0.5; // 0-1
+    float frameDrag = frameR * frameSpin * 0.06 * (0.4 + energy * 0.6) * u_twRing;
+    col += spectralColor(u_centroid) * frameDrag;
+
+    // === CORONA: squared falloff glow ===
+    float coronaR = (0.12 + energy * 0.06 + u_kick * 0.04) * zoomScale;
+    float corona = smoothstep(coronaR, 0.0, warpedDist);
+    corona *= corona;
+    corona *= (0.15 + peakIntensity * 0.6) * u_twCorona;
+    vec3 coronaCol = mix(vec3(0.2, 0.06, 0.4), peakCol, 0.3 + peakIntensity * 0.4);
     col += coronaCol * corona;
 
-    // === BLACK HOLE VOID: grows with energy ===
-    float voidR = (0.018 + energy * 0.012 + u_kick * 0.015) * zoomScale * u_twVoid;
-    float voidSoft = (0.01 + peakIntensity * 0.008) * zoomScale;
+    // === VOID: hard black shadow ===
+    float voidR = (0.02 + energy * 0.01 + u_kick * 0.012) * zoomScale * u_twVoid;
+    float voidSoft = 0.005 * zoomScale; // very thin edge
     col *= smoothstep(voidR, voidR + voidSoft, warpedDist);
 
-    // Kick flash — tinted purple instead of white
-    col += vec3(0.3, 0.15, 0.5) * u_kick * 0.15;
+    // Kick flash — subtle
+    col += vec3(0.15, 0.08, 0.3) * u_kick * 0.1;
 
     // Vignette
     col *= 0.55 + 0.45 * (1.0 - smoothstep(0.3, 1.1, dist * 1.2));
